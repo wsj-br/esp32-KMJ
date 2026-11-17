@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>KMJ</title>
+  <style>
+    :root {
+      --bg: #121418;
+      --panel: #1b2028;
+      --line: #31404c;
+      --text: #e7e4dc;
+      --dim: #8e97a3;
+      --cyan: #3ee0c5;
+      --amber: #f0a202;
+      --slate: #c9d2dc;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+    body {
+      font-family: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
+      display: grid;
+      grid-template-rows: 56px 1fr;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 12px;
+      color: var(--dim);
+    }
+    header strong { color: var(--cyan); font-size: 18px; letter-spacing: 0.18em; }
+    main { display: grid; grid-template-columns: 280px 1fr; min-height: 0; }
+    aside, section { padding: 22px; min-height: 0; }
+    aside { border-right: 1px solid var(--line); }
+    section { overflow: auto; }
+    h2 { font-family: "Chakra Petch", "Segoe UI", sans-serif; font-weight: 500; margin: 0 0 12px; }
+    button, input {
+      font: inherit;
+      color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    button { cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    button.primary { background: #143f3a; border-color: var(--cyan); color: var(--cyan); }
+    button.warn { background: #3a2a12; border-color: var(--amber); color: var(--amber); }
+    .row { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+    li small { display: block; color: var(--dim); }
+    .stage {
+      min-height: 280px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 28px;
+      background:
+        linear-gradient(180deg, rgba(62,224,197,0.05), transparent 40%),
+        var(--panel);
+    }
+    .stage h1 { font-family: "Chakra Petch", sans-serif; font-size: 42px; margin: 0 0 8px; }
+    .code { font-size: 40px; letter-spacing: 0.3em; color: var(--cyan); }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 18px;
+      border: 1px solid var(--amber);
+      background: rgba(18, 20, 24, 0.92);
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--amber);
+    }
+    .overlay.on { display: flex; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>KMJ</strong>
+    <span id="phase">released</span>
+  </header>
+  <main>
+    <aside>
+      <h2>Devices</h2>
+      <div class="row">
+        <button id="scan">Scan</button>
+      </div>
+      <ul id="devices"></ul>
+      <div class="row">
+        <input id="manual" placeholder="192.168.1.20:42424" style="width:100%" />
+      </div>
+    </aside>
+    <section>
+      <div class="stage">
+        <h1 id="title">Released</h1>
+        <p id="note">Pair once, connect, then capture. Ctrl+Alt+Esc gives the keyboard back.</p>
+        <p class="code" id="code"></p>
+        <div class="row">
+          <button id="pair">Pair</button>
+          <button id="confirm">Codes match</button>
+          <button id="connect" class="primary">Connect</button>
+          <button id="grab" class="warn">Capture</button>
+          <button id="drop">Release</button>
+        </div>
+        <div class="row">
+          <input id="hotkey" value="ctrl+alt+esc" />
+          <button id="savekey">Save chord</button>
+        </div>
+      </div>
+      <div class="stage" style="margin-top: 18px;">
+        <h2>Wi-Fi setup</h2>
+        <p id="wifi-note">On the device, open Config and tap Wi-Fi setup.</p>
+        <div class="row">
+          <button id="ble">Find device</button>
+        </div>
+        <ul id="ble-devices"></ul>
+        <div class="row">
+          <input id="ssid" placeholder="Network name" />
+          <input id="pass" type="password" placeholder="Password" />
+          <button id="join" class="primary">Send</button>
+        </div>
+        <div class="row">
+          <button id="nets">Networks the device can see</button>
+        </div>
+        <ul id="netlist"></ul>
+      </div>
+    </section>
+  </main>
+  <div class="overlay" id="overlay">Capturing · Ctrl+Alt+Esc releases</div>
+  <script>
+    const { invoke } = window.__TAURI__.core;
+    let selected = null;
+    let bleId = null;
+    const $ = (id) => document.getElementById(id);
+    function errText(error) {
+      if (typeof error === "string") return error;
+      if (error && error.message) return error.message;
+      return String(error);
+    }
+    async function hold(button, work) {
+      button.disabled = true;
+      try {
+        await work();
+      } finally {
+        button.disabled = false;
+      }
+    }
+    function parseAddr() {
+      if (selected) return selected;
+      const raw = $("manual").value.trim();
+      const [host, port] = raw.split(":");
+      return { host, port: Number(port || 42424) };
+    }
+    async function refresh() {
+      const s = await invoke("status");
+      $("phase").textContent = s.phase;
+      $("title").textContent = s.phase === "capturing" ? "Capturing" : "Released";
+      $("hotkey").value = s.hotkey;
+      $("code").textContent = s.code || "";
+      $("overlay").classList.toggle("on", s.phase === "capturing");
+    }
+    $("scan").onclick = async () => {
+      const list = await invoke("scan");
+      const ul = $("devices");
+      ul.innerHTML = "";
+      for (const d of list) {
+        const li = document.createElement("li");
+        li.innerHTML = `${d.name}<small>${d.host}:${d.port}</small>`;
+        li.onclick = () => { selected = d; $("manual").value = `${d.host}:${d.port}`; };
+        ul.appendChild(li);
+      }
+    };
+    $("pair").onclick = async () => {
+      const a = parseAddr();
+      $("code").textContent = await invoke("pair", { host: a.host, port: a.port });
+    };
+    $("confirm").onclick = () => invoke("confirm_pair").then(refresh);
+    $("connect").onclick = () => {
+      const a = parseAddr();
+      invoke("connect_device", { host: a.host, port: a.port }).then(refresh);
+    };
+    $("grab").onclick = () => invoke("capture", { enable: true }).then(refresh);
+    $("drop").onclick = () => invoke("capture", { enable: false }).then(refresh);
+    $("savekey").onclick = () => invoke("set_hotkey", { hotkey: $("hotkey").value }).then(refresh);
+    $("ble").onclick = () => hold($("ble"), async () => {
+      $("wifi-note").textContent = "Looking for the device…";
+      try {
+        const list = await invoke("ble_scan");
+        const ul = $("ble-devices");
+        ul.innerHTML = "";
+        bleId = null;
+        if (list.length === 0) {
+          $("wifi-note").textContent = "Nothing found. On the device, tap Wi-Fi setup, then Allow.";
+          return;
+        }
+        for (const device of list) {
+          const li = document.createElement("li");
+          li.textContent = device.name;
+          li.onclick = () => {
+            bleId = device.id;
+            $("wifi-note").textContent = `Selected ${device.name}. If the device asks, tap Allow.`;
+          };
+          ul.appendChild(li);
+        }
+        bleId = list[0].id;
+        $("wifi-note").textContent = `Selected ${list[0].name}. If the device asks, tap Allow.`;
+      } catch (error) {
+        $("wifi-note").textContent = errText(error);
+      }
+    });
+    $("join").onclick = () => hold($("join"), async () => {
+      if (!bleId) {
+        $("wifi-note").textContent = "Find the device first.";
+        return;
+      }
+      $("wifi-note").textContent = "Sending. If the device asks, tap Allow.";
+      try {
+        $("wifi-note").textContent = await invoke("ble_join", {
+          id: bleId,
+          ssid: $("ssid").value,
+          password: $("pass").value,
+        });
+      } catch (error) {
+        $("wifi-note").textContent = errText(error);
+      }
+    });
+    $("nets").onclick = () => hold($("nets"), async () => {
+      if (!bleId) {
+        $("wifi-note").textContent = "Find the device first.";
+        return;
+      }
+      $("wifi-note").textContent = "Asking the device for networks…";
+      try {
+        const list = await invoke("ble_networks", { id: bleId });
+        const ul = $("netlist");
+        ul.innerHTML = "";
+        if (list.length === 0) {
+          $("wifi-note").textContent = "The device saw no networks.";
+          return;
+        }
+        for (const net of list) {
+          const li = document.createElement("li");
+          li.innerHTML = `${net.ssid}<small>${net.auth}  ${net.rssi} dB</small>`;
+          li.onclick = () => { $("ssid").value = net.ssid; };
+          ul.appendChild(li);
+        }
+        $("wifi-note").textContent = "Pick a network, then Send.";
+      } catch (error) {
+        $("wifi-note").textContent = errText(error);
+      }
+    });
+    window.__TAURI__.event.listen("phase", () => refresh());
+    refresh();
+  </script>
+</body>
+</html>

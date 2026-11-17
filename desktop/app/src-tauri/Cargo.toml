@@ -1,0 +1,27 @@
+[package]
+name = "kmj-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "KMJ desktop capture client"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+# `cargo run` and release builds embed desktop/app/ui. `tauri dev` drops this
+# feature and loads devUrl, which is why that server is not started here.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+kmj-capture = { path = "../../kmj-capture" }
+kmj-client = { path = "../../kmj-client" }
+kmj-proto = { path = "../../kmj-proto" }
+btleplug = "0.11"
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tokio = { version = "1", features = ["time"] }
+uuid = "1"
