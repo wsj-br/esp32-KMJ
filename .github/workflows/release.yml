@@ -1,0 +1,356 @@
+# Builds unsigned release assets when a GitHub release is published.
+# Firmware and every desktop target are attached only after they all succeed.
+# scripts/release.sh creates the release; this workflow does not create it.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Validate and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate release tag and notes
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(bash ./scripts/version.sh)"
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo "Release tag '$RELEASE_TAG' does not match project version '$version'. Expected 'v$version'." >&2
+            exit 1
+          fi
+          test -f "release-notes/RELEASE_NOTES_${version}.md"
+
+      - name: Test firmware logic
+        run: pio test -e native -d firmware
+
+      - name: Linux capture libraries
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libx11-dev libevdev-dev libdbus-1-dev
+
+      - name: Test desktop crates
+        run: cargo test --manifest-path desktop/Cargo.toml --workspace --exclude kmj-app
+
+  firmware:
+    name: Build firmware
+    runs-on: ubuntu-24.04
+    needs: test
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build kmj
+        run: pio run -e kmj -d firmware
+
+      - name: Package merged firmware image
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(bash ./scripts/version.sh)"
+          mkdir -p dist
+          python3 - "$version" <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          version = sys.argv[1]
+          root = Path.cwd()
+          build = root / "firmware" / ".pio" / "build" / "kmj"
+          args = json.loads((build / "flasher_args.json").read_text(encoding="utf-8"))
+          files = args.get("flash_files")
+          if not isinstance(files, dict) or not files:
+              sys.exit("flasher_args.json has no flash_files")
+          settings = args.get("flash_settings") or {}
+          for key in ("flash_mode", "flash_freq", "flash_size"):
+              if not settings.get(key):
+                  sys.exit(f"flasher_args.json flash_settings is missing {key}")
+          chip = (args.get("extra_esptool_args") or {}).get("chip") or "esp32s3"
+
+          def resolve(name):
+              path = Path(name)
+              candidates = [path, build / name, root / "firmware" / name]
+              for candidate in candidates:
+                  if candidate.is_file():
+                      return candidate
+              sys.exit(f"flash file not found: {name}")
+
+          output = root / "dist" / f"KMJ_{version}_firmware.bin"
+          command = [
+              "pio", "pkg", "exec", "-p", "tool-esptoolpy", "-d", "firmware", "--",
+              "esptool.py", "--chip", chip, "merge-bin",
+              "--output", str(output),
+              "--flash-mode", settings["flash_mode"],
+              "--flash-freq", settings["flash_freq"],
+              "--flash-size", settings["flash_size"],
+          ]
+          for offset, name in sorted(files.items(), key=lambda item: int(item[0], 16)):
+              command.extend([offset, str(resolve(name))])
+          subprocess.run(command, check=True)
+          digest = hashlib.sha256(output.read_bytes()).hexdigest()
+          output.with_name(output.name + ".sha256").write_text(
+              f"{digest}  {output.name}\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware
+          path: |
+            dist/KMJ_*_firmware.bin
+            dist/KMJ_*_firmware.bin.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  desktop:
+    name: Build ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    needs: test
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: linux-amd64
+            runner: ubuntu-24.04
+            kind: linux
+            bundles: deb,appimage
+            deb_arch: amd64
+            appimage_arch: amd64
+          - id: linux-arm64
+            runner: ubuntu-24.04-arm
+            kind: linux
+            bundles: deb,appimage
+            deb_arch: arm64
+            appimage_arch: aarch64
+          - id: macos-arm64
+            runner: macos-15
+            kind: macos
+            bundles: dmg
+            dmg_arch: aarch64
+          - id: macos-intel
+            runner: macos-15-intel
+            kind: macos
+            bundles: dmg
+            dmg_arch: x64
+          - id: windows-x64
+            runner: windows-2025
+            kind: windows
+            bundles: nsis
+            nsis_arch: x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Linux libraries
+        if: matrix.kind == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libevdev-dev libdbus-1-dev \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      - name: Test desktop crates
+        if: matrix.kind != 'linux'
+        shell: bash
+        run: cargo test --manifest-path desktop/Cargo.toml --workspace --exclude kmj-app
+
+      - name: Build installers
+        shell: bash
+        run: bash ./scripts/build-installers.sh --bundles "${{ matrix.bundles }}"
+
+      - name: Stage installer artifacts
+        shell: bash
+        env:
+          KIND: ${{ matrix.kind }}
+          DEB_ARCH: ${{ matrix.deb_arch }}
+          APPIMAGE_ARCH: ${{ matrix.appimage_arch }}
+          DMG_ARCH: ${{ matrix.dmg_arch }}
+          NSIS_ARCH: ${{ matrix.nsis_arch }}
+        run: |
+          set -euo pipefail
+          version="$(bash ./scripts/version.sh)"
+          bundle="${CARGO_TARGET_DIR:-desktop/target}/release/bundle"
+          mkdir -p dist
+
+          sha256_file() {
+            python3 - "$1" <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+          path = pathlib.Path(sys.argv[1])
+          digest = hashlib.sha256(path.read_bytes()).hexdigest()
+          path.with_name(path.name + ".sha256").write_text(
+              f"{digest}  {path.name}\n", encoding="utf-8"
+          )
+          PY
+          }
+
+          stage() {
+            local src="$1"
+            test -f "$src"
+            cp "$src" "dist/$(basename "$src")"
+            sha256_file "dist/$(basename "$src")"
+          }
+
+          case "$KIND" in
+            linux)
+              stage "$bundle/deb/KMJ_${version}_${DEB_ARCH}.deb"
+              stage "$bundle/appimage/KMJ_${version}_${APPIMAGE_ARCH}.AppImage"
+              ;;
+            macos)
+              stage "$bundle/dmg/KMJ_${version}_${DMG_ARCH}.dmg"
+              ;;
+            windows)
+              stage "$bundle/nsis/KMJ_${version}_${NSIS_ARCH}-setup.exe"
+              ;;
+            *)
+              echo "Unknown desktop kind: $KIND" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.id }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Attach release assets
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    needs:
+      - firmware
+      - desktop
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*"
+          path: dist
+          merge-multiple: true
+
+      - name: Verify release assets
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          expected=(
+            "KMJ_${version}_firmware.bin"
+            "KMJ_${version}_firmware.bin.sha256"
+            "KMJ_${version}_amd64.deb"
+            "KMJ_${version}_amd64.deb.sha256"
+            "KMJ_${version}_amd64.AppImage"
+            "KMJ_${version}_amd64.AppImage.sha256"
+            "KMJ_${version}_arm64.deb"
+            "KMJ_${version}_arm64.deb.sha256"
+            "KMJ_${version}_aarch64.AppImage"
+            "KMJ_${version}_aarch64.AppImage.sha256"
+            "KMJ_${version}_aarch64.dmg"
+            "KMJ_${version}_aarch64.dmg.sha256"
+            "KMJ_${version}_x64.dmg"
+            "KMJ_${version}_x64.dmg.sha256"
+            "KMJ_${version}_x64-setup.exe"
+            "KMJ_${version}_x64-setup.exe.sha256"
+          )
+          for asset in "${expected[@]}"; do
+            test -f "dist/$asset"
+          done
+          (
+            cd dist
+            sha256sum --check --strict -- *.sha256
+          )
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload assets to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets=(
+            "dist/KMJ_${VERSION}_firmware.bin"
+            "dist/KMJ_${VERSION}_firmware.bin.sha256"
+            "dist/KMJ_${VERSION}_amd64.deb"
+            "dist/KMJ_${VERSION}_amd64.deb.sha256"
+            "dist/KMJ_${VERSION}_amd64.AppImage"
+            "dist/KMJ_${VERSION}_amd64.AppImage.sha256"
+            "dist/KMJ_${VERSION}_arm64.deb"
+            "dist/KMJ_${VERSION}_arm64.deb.sha256"
+            "dist/KMJ_${VERSION}_aarch64.AppImage"
+            "dist/KMJ_${VERSION}_aarch64.AppImage.sha256"
+            "dist/KMJ_${VERSION}_aarch64.dmg"
+            "dist/KMJ_${VERSION}_aarch64.dmg.sha256"
+            "dist/KMJ_${VERSION}_x64.dmg"
+            "dist/KMJ_${VERSION}_x64.dmg.sha256"
+            "dist/KMJ_${VERSION}_x64-setup.exe"
+            "dist/KMJ_${VERSION}_x64-setup.exe.sha256"
+          )
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber

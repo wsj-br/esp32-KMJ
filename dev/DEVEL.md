@@ -69,7 +69,7 @@ Host tests, which do not need the board:
 pio test -e native -d firmware
 ```
 
-The `native` environment compiles only the platform-independent logic. CI builds `kmj` and runs these tests, but it never flashes a board.
+The `native` environment compiles only the platform-independent logic. The release workflow runs these tests, builds `kmj`, and attaches a merged firmware image to the GitHub release. It never flashes a board.
 
 ### Hardware constraints
 
@@ -114,7 +114,7 @@ For a cross-platform command that does not depend on Bash:
 cargo run --manifest-path desktop/Cargo.toml -p kmj-app
 ```
 
-Build artifacts are written under `desktop/target/debug/` or `desktop/target/release/`. CI tests the support crates and compiles the app on Linux, Windows, and macOS. Cross-platform compilation does not validate native input capture; complete each platform's manual checks below.
+Build artifacts are written under `desktop/target/debug/` or `desktop/target/release/`. The release workflow tests the support crates and builds installers for Linux amd64 and arm64, macOS Intel and Apple Silicon, and Windows x64. Cross-platform compilation does not validate native input capture; complete each platform's manual checks below.
 
 ### Wi-Fi setup
 
@@ -161,7 +161,7 @@ Finishing this backend requires an active event-tap run loop, conversion of `CGE
 
 `scripts/write-notices.sh` builds the AppImage with `--copyright-files` and `--bundles appimage`, then writes `NOTICES` at the repository root. The file has the AppImage Debian copyright files, the Rust crates from `desktop/Cargo.lock`, and the firmware libraries (PlatformIO libraries, vendored Monocypher, and the Arduino-ESP32 framework). A `-------` line separates each package. That build takes a few minutes. The next default installer build deletes the AppDir and skips the copyright scan again.
 
-Linux needs the WebKitGTK development packages listed in Prerequisites and produces `.deb` / AppImage files. Windows produces an NSIS or MSI bundle. macOS produces a `.dmg`. Bundles land in `desktop/target/release/bundle/`.
+Linux needs the WebKitGTK development packages listed in Prerequisites and produces `.deb` / AppImage files. Windows produces an NSIS or MSI bundle. macOS produces a `.dmg`. Bundles land in `desktop/target/release/bundle/`. The release workflow builds the Linux `.deb` and AppImage, the Windows NSIS installer, and the macOS `.dmg`, and attaches those files to the GitHub release. The asset names are listed under [Release](#release).
 
 The taskbar and Dock icons come from `desktop/app/src-tauri/icons/`: Windows embeds `icon.ico` in the executable, macOS uses `icon.icns` in the `.app` (and `cargo run` applies it to the Dock), and Linux uses the PNG set plus the `.desktop` entry installed by `scripts/run-desktop.sh`.
 
@@ -199,9 +199,21 @@ Run `./scripts/upgrade-dependencies.sh --help` for component-specific skip flags
 
 `scripts/release.sh` publishes a GitHub release from HEAD. It requires Git, Python 3, an authenticated GitHub CLI, an `origin` remote, and a clean working tree by default.
 
-`./scripts/version.sh` prints the shared `MAJOR.MINOR.PATCH` version. `./scripts/version.sh x.y.z` writes that version to `desktop/Cargo.toml`, `desktop/Cargo.lock`, `desktop/app/src-tauri/tauri.conf.json`, `firmware/include/pins.hpp`, the panel field in `firmware/src/ui/model.hpp`, and the current-version sentence in `dev/CHANGELOG.md`. Each part must be an integer with no leading zeros; 0 is allowed. Notes come from `release-notes/RELEASE_NOTES_<version>.md`. The steps for writing that file and folding `dev/CHANGELOG.md` are in [`release-new-version-prompt.md`](release-new-version-prompt.md). If `v<version>` already exists as a tag or GitHub release, the script deletes it and recreates it at HEAD. Publishing the release is the trigger for `.github/workflows/ci.yml`; CI does not run on ordinary pushes or pull requests. The release script itself does not build firmware or the desktop app.
+`./scripts/version.sh` prints the shared `MAJOR.MINOR.PATCH` version. `./scripts/version.sh x.y.z` writes that version to `desktop/Cargo.toml`, `desktop/Cargo.lock`, `desktop/app/src-tauri/tauri.conf.json`, `firmware/include/pins.hpp`, the panel field in `firmware/src/ui/model.hpp`, and the current-version sentence in `dev/CHANGELOG.md`. Each part must be an integer with no leading zeros; 0 is allowed. Notes come from `release-notes/RELEASE_NOTES_<version>.md`. The steps for writing that file and folding `dev/CHANGELOG.md` are in [`release-new-version-prompt.md`](release-new-version-prompt.md). If `v<version>` already exists as a tag or GitHub release, the script deletes it and recreates it at HEAD. Publishing the release is the trigger for `.github/workflows/release.yml`; CI does not run on ordinary pushes or pull requests. The release script itself does not build firmware or the desktop app. After every build succeeds, the workflow attaches the unsigned assets below to that release. Each file has a sibling `.sha256` checksum.
+
+| File | What it is |
+| --- | --- |
+| `KMJ_<version>_firmware.bin` | Merged `kmj` image for the LilyGO T-Display-S3 Pro. Flash it at offset `0x0`. |
+| `KMJ_<version>_amd64.deb` | Linux amd64 Debian package. |
+| `KMJ_<version>_amd64.AppImage` | Linux amd64 AppImage. |
+| `KMJ_<version>_arm64.deb` | Linux arm64 Debian package. |
+| `KMJ_<version>_aarch64.AppImage` | Linux arm64 AppImage. The AppImage arch token is `aarch64`. |
+| `KMJ_<version>_x64.dmg` | macOS Intel disk image. |
+| `KMJ_<version>_aarch64.dmg` | macOS Apple Silicon disk image. |
+| `KMJ_<version>_x64-setup.exe` | Windows x64 NSIS installer. |
 
 ```bash
+esptool.py --chip esp32s3 write_flash 0x0 KMJ_<version>_firmware.bin
 ./scripts/release.sh --dry-run
 ./scripts/release.sh
 ```

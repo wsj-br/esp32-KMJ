@@ -11,6 +11,7 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 
 ## [Unreleased]
 
+- **Changed**: release — `.github/workflows/release.yml` runs when a GitHub release is published. It builds the `kmj` firmware image and desktop installers for Linux amd64 and arm64, macOS Intel and Apple Silicon, and Windows x64, then attaches them to that release.
 - **Added**: desktop — the window footer shows the app version and build timestamp, right aligned, in small muted text.
 - **Changed**: firmware — the configuration screen shows the firmware version before the build timestamp.
 - **Added**: scripts — `scripts/version.sh` prints the shared version, or sets it to an `x.y.z` value.

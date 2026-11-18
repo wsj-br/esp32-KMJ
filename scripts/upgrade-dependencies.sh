@@ -9,7 +9,7 @@
 #   Direct Cargo requirements under desktop/, then desktop/Cargo.lock
 #   PlatformIO lib_deps in firmware/platformio.ini
 #   Vendored firmware/lib/monocypher and firmware/lib/SensorLib
-#   GitHub Actions version tags in .github/workflows/ci.yml
+#   GitHub Actions version tags in .github/workflows/release.yml
 #
 # The PlatformIO platform stays on the pioarduino stable URL. After the
 # lib_deps pins move, pio pkg update refreshes the local package cache.
@@ -136,7 +136,7 @@ snapshot_files() {
   cp -a "$ROOT/firmware/platformio.ini" "$SNAP/firmware/platformio.ini"
   cp -a "$ROOT/firmware/lib/monocypher" "$SNAP/firmware/lib/monocypher"
   cp -a "$ROOT/firmware/lib/SensorLib" "$SNAP/firmware/lib/SensorLib"
-  cp -a "$ROOT/.github/workflows/ci.yml" "$SNAP/.github/workflows/ci.yml"
+  cp -a "$ROOT/.github/workflows/release.yml" "$SNAP/.github/workflows/release.yml"
 }
 
 restore_snapshot() {
@@ -147,7 +147,7 @@ restore_snapshot() {
     cp -a "$SNAP/$rel" "$ROOT/$rel"
   done
   cp -a "$SNAP/firmware/platformio.ini" "$ROOT/firmware/platformio.ini"
-  cp -a "$SNAP/.github/workflows/ci.yml" "$ROOT/.github/workflows/ci.yml"
+  cp -a "$SNAP/.github/workflows/release.yml" "$ROOT/.github/workflows/release.yml"
   rm -rf "$ROOT/firmware/lib/monocypher" "$ROOT/firmware/lib/SensorLib"
   cp -a "$SNAP/firmware/lib/monocypher" "$ROOT/firmware/lib/monocypher"
   cp -a "$SNAP/firmware/lib/SensorLib" "$ROOT/firmware/lib/SensorLib"
@@ -527,7 +527,7 @@ def action_ref(repository, current):
 def upgrade_actions():
     if skip_actions:
         return
-    path = root / ".github/workflows/ci.yml"
+    path = root / ".github/workflows/release.yml"
     original = path.read_text(encoding="utf-8")
     pattern = re.compile(
         r"^(\s*- uses: )([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(v\d+(?:\.\d+)*)(\s*)$"
@@ -545,7 +545,7 @@ def upgrade_actions():
             output.append(line)
             continue
         output.append(f"{prefix}{repository}@{updated}{suffix}")
-        print(f".github/workflows/ci.yml: {repository} {current} -> {updated}")
+        print(f".github/workflows/release.yml: {repository} {current} -> {updated}")
         changed += 1
     newline = "\n" if original.endswith("\n") else ""
     write_if_changed(path, original, "\n".join(output) + newline)
@@ -633,7 +633,7 @@ if files_differ "$ROOT/firmware/platformio.ini" "$SNAP/firmware/platformio.ini" 
   || tree_differs "$ROOT/firmware/lib/SensorLib" "$SNAP/firmware/lib/SensorLib"; then
   firmware_changed=true
 fi
-if files_differ "$ROOT/.github/workflows/ci.yml" "$SNAP/.github/workflows/ci.yml"; then
+if files_differ "$ROOT/.github/workflows/release.yml" "$SNAP/.github/workflows/release.yml"; then
   actions_changed=true
 fi
 

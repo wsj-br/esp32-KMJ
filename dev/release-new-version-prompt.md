@@ -1,4 +1,4 @@
-Create a new release notes file `release-notes/RELEASE_NOTES_<x.y.z>.md` for **KMJ** using the instructions below. This file is used by [`scripts/release.sh`](https://github.com/wsj-br/esp32-KMJ/blob/main/scripts/release.sh). Publishing the GitHub release is what starts [`.github/workflows/ci.yml`](https://github.com/wsj-br/esp32-KMJ/blob/main/.github/workflows/ci.yml): firmware host tests, a `kmj` firmware build, desktop crate tests, and a release build of the Tauri app on Linux, Windows, and macOS. CI does not flash a board and does not upload firmware binaries or desktop installers.
+Create a new release notes file `release-notes/RELEASE_NOTES_<x.y.z>.md` for **KMJ** using the instructions below. This file is used by [`scripts/release.sh`](https://github.com/wsj-br/esp32-KMJ/blob/main/scripts/release.sh). Publishing the GitHub release is what starts [`.github/workflows/release.yml`](https://github.com/wsj-br/esp32-KMJ/blob/main/.github/workflows/release.yml). It builds the `kmj` firmware image and desktop installers for Linux amd64 and arm64, macOS Intel and Apple Silicon, and Windows x64, then attaches them to the release. It does not flash a board.
 
 **Before you start:** run the checks CI runs. CI does not run on pushes or pull requests, so these are the pre-release checks:
 
@@ -7,7 +7,7 @@ Create a new release notes file `release-notes/RELEASE_NOTES_<x.y.z>.md` for **K
 3. `cargo test --manifest-path desktop/Cargo.toml --workspace --exclude kmj-app`
 4. `cargo build --release -p kmj-app --manifest-path desktop/Cargo.toml`
 
-Fix any failures. `./scripts/build-desktop.sh` is the debug app build; the release command above is what CI runs. Optionally run `./scripts/build-installers.sh` on your machine for a host-OS installer smoke test (slow; CI does not run it). Do not flash, monitor, or open the board serial port. Hardware checks in [`dev/DEVEL.md`](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md) need a person and a board; do not claim they passed.
+Fix any failures. `./scripts/build-desktop.sh` is the debug app build. The release workflow builds installers with `./scripts/build-installers.sh` on each target; a local run of that script checks the host installer only. Do not flash, monitor, or open the board serial port. Hardware checks in [`dev/DEVEL.md`](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md) need a person and a board; do not claim they passed.
 
 **Instructions:**
 
@@ -31,7 +31,7 @@ Fix any failures. `./scripts/build-desktop.sh` is the debug app build; the relea
    - Do not weaken or misstate the safety properties: the release chord (Ctrl+Alt+Esc by default) is never forwarded, and the firmware releases all keys and buttons within 3 seconds of losing the desktop.
    - `## License` — KMJ is under the **MIT License**; copyright line and link to [`LICENSE`](https://github.com/wsj-br/esp32-KMJ/blob/main/LICENSE) as in the example.
      - Under License, include a collapsible **Disclaimer** `<details>` with the product-names disclaimer in the example, plus a link to [`NOTICES`](https://github.com/wsj-br/esp32-KMJ/blob/main/NOTICES).
-   - `## Downloads` — This release does not attach build artifacts. Tell readers to build from the tag. Firmware: [`dev/DEVEL.md`](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md) (`./scripts/build-firmware.sh` / `./scripts/flash-firmware.sh`). Desktop app: `./scripts/build-desktop.sh` or `./scripts/run-desktop.sh`. Host installers from `./scripts/build-installers.sh` are Linux `.deb` and AppImage, Windows NSIS or MSI, and macOS `.dmg`; they are not uploaded by CI. Do not invent asset filenames, checksums, or a claim that GitHub Assets contain binaries. End with a link to the release: `https://github.com/wsj-br/esp32-KMJ/releases/tag/v<version>` (the tag includes the `v` prefix).
+   - `## Downloads` — The release attaches the unsigned assets listed in [`dev/DEVEL.md`](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md#release). Name those files. Do not invent checksums or extra filenames. End with a link to the release: `https://github.com/wsj-br/esp32-KMJ/releases/tag/v<version>` (the tag includes the `v` prefix).
    - Closing thank-you line after a horizontal rule, matching the example.
    - Do **not** paste the raw `[Unreleased]` changelog verbatim as the only content; synthesize Highlights / Improvements / Fixes first.
 5. **Update `dev/CHANGELOG.md`**:
@@ -105,11 +105,12 @@ See [NOTICES](https://github.com/wsj-br/esp32-KMJ/blob/main/NOTICES) for third-p
 
 ## Downloads
 
-Build this tag locally. CI checks the firmware and the desktop app; it does not attach binaries to this release.
+This release attaches unsigned build artifacts. Each file has a `.sha256` checksum beside it. The names are listed in [DEVEL.md](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md#release).
 
-- **Firmware**: Build and flash from this tag. See [DEVEL.md](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md#firmware). The board is a LilyGO T-Display-S3 Pro. The `kmj` build is HID only.
-- **Desktop**: Build or run the app with `./scripts/build-desktop.sh` or `./scripts/run-desktop.sh`. See [DEVEL.md](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md#desktop-client).
-- **Installers**: `./scripts/build-installers.sh` builds host installers (Linux `.deb` and AppImage, Windows NSIS or MSI, macOS `.dmg`) into `desktop/target/release/bundle/`. Those files are not uploaded here.
+- **Firmware**: `KMJ_<version>_firmware.bin` is the merged `kmj` image for a LilyGO T-Display-S3 Pro. Flash it at offset `0x0`. It is HID only.
+- **Linux**: `.deb` and AppImage for amd64 and arm64.
+- **macOS**: `.dmg` for Intel (`x64`) and Apple Silicon (`aarch64`).
+- **Windows**: `KMJ_<version>_x64-setup.exe`.
 
 See the [release](https://github.com/wsj-br/esp32-KMJ/releases/tag/v0.1.0) for this tag.
 

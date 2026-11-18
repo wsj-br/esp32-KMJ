@@ -8,8 +8,9 @@
 # If tag v<version> or a GitHub release for it already exists, it is removed
 # and the tag is recreated at the current HEAD, then pushed.
 #
-# Publishing the release triggers .github/workflows/ci.yml. This script does
-# not build firmware or the desktop app.
+# Publishing the release triggers .github/workflows/release.yml, which builds the
+# firmware image and desktop installers and attaches them to this release.
+# This script does not build firmware or the desktop app.
 #
 # Usage:
 #   ./scripts/release.sh
@@ -41,7 +42,8 @@ Reads the version from desktop/Cargo.toml, tauri.conf.json, and
 firmware/include/pins.hpp. Requires release-notes/RELEASE_NOTES_<version>.md.
 If tag v<version> or a GitHub release for it already exists, they are removed
 and the tag is recreated at HEAD, then pushed to origin. Publishing the release
-triggers .github/workflows/ci.yml.
+triggers .github/workflows/release.yml, which builds the firmware image and desktop
+installers and attaches them to this release.
 EOF
       exit 0
       ;;
@@ -204,6 +206,6 @@ fi
 "${CMD[@]}"
 echo "Release created successfully: ${TAG}"
 echo ""
-echo "Publishing ${TAG} triggers .github/workflows/ci.yml."
+echo "Publishing ${TAG} triggers .github/workflows/release.yml, which attaches the firmware image and desktop installers to this release."
 echo "See progress at ${REPO_URL}/actions"
 echo ""

@@ -6,7 +6,7 @@ Details live in [`dev/DEVEL.md`](dev/DEVEL.md) (build, hardware checks, release)
 
 ## Validation: what to run before finishing
 
-CI runs only when a GitHub release is published, never on pushes or PRs. Check locally.
+CI runs only when a GitHub release is published, never on pushes or PRs. That workflow builds the `kmj` firmware image and the desktop installers, then attaches them to the release. Check locally.
 
 | Change | Run |
 | --- | --- |
