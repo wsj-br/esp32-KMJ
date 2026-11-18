@@ -14,7 +14,6 @@ namespace {
 
 lv_display_t* g_disp = nullptr;
 void* g_buf1 = nullptr;
-void* g_buf2 = nullptr;
 size_t g_buf_bytes = 0;
 
 void flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
@@ -57,41 +56,20 @@ void lvgl_port_init() {
   lv_init();
   lv_tick_set_cb(tick_cb);
   g_disp = lv_display_create(kScreenW, kScreenH);
+  // One buffer: flush_cb waits for the transfer, so a second one buys nothing and
+  // would take 13 KB of internal RAM that Bluetooth needs.
   g_buf_bytes = static_cast<size_t>(kScreenW) * 30u * 2u;
   g_buf1 = heap_caps_malloc(g_buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-  g_buf2 = heap_caps_malloc(g_buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
   if (g_buf1 == nullptr) {
     g_buf1 = heap_caps_malloc(g_buf_bytes, MALLOC_CAP_INTERNAL);
   }
   lv_display_set_color_format(g_disp, LV_COLOR_FORMAT_RGB565);
-  lv_display_set_buffers(g_disp, g_buf1, g_buf2, g_buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_buffers(g_disp, g_buf1, nullptr, g_buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
   lv_display_set_flush_cb(g_disp, flush_cb);
   lv_indev_t* indev = lv_indev_create();
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, read_cb);
   lv_indev_set_display(indev, g_disp);
-}
-
-void lvgl_port_drop_spare() {
-  if (g_disp == nullptr || g_buf1 == nullptr || g_buf2 == nullptr) {
-    return;
-  }
-  lv_display_set_buffers(g_disp, g_buf1, nullptr, g_buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
-  heap_caps_free(g_buf2);
-  g_buf2 = nullptr;
-}
-
-void lvgl_port_restore_spare() {
-  if (g_disp == nullptr || g_buf1 == nullptr || g_buf2 != nullptr) {
-    return;
-  }
-  g_buf2 = heap_caps_malloc(g_buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-  if (g_buf2 == nullptr) {
-    g_buf2 = heap_caps_malloc(g_buf_bytes, MALLOC_CAP_INTERNAL);
-  }
-  if (g_buf2 != nullptr) {
-    lv_display_set_buffers(g_disp, g_buf1, g_buf2, g_buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
-  }
 }
 
 }  // namespace kmj

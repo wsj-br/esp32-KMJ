@@ -15,6 +15,8 @@ constexpr int kMinPauseMs = 30000;
 constexpr int kMaxPauseMs = 90000;
 constexpr int kStepInterval = 10;
 constexpr float kHoursToRun = 8.0f;
+constexpr uint32_t kRunLimitMs = static_cast<uint32_t>(kHoursToRun * 60.0f * 60.0f * 1000.0f);
+constexpr uint32_t kRunLimitS = (kRunLimitMs + 999u) / 1000u;
 constexpr int kNudgeDx[] = {0, -20, 0, 40, 0, -20, 0};
 constexpr int kNudgeDy[] = {-20, 0, 40, 0, -40, 0, 20};
 
@@ -38,10 +40,14 @@ void Jiggler::start(uint32_t now_ms) {
   moving_ = false;
   have_delta_ = false;
   start_ms_ = now_ms;
+  frozen_left_s_ = kRunLimitS;
   schedule(now_ms);
 }
 
-void Jiggler::stop() {
+void Jiggler::stop(uint32_t now_ms) {
+  if (enabled_) {
+    frozen_left_s_ = run_left_s(now_ms);
+  }
   enabled_ = false;
   moving_ = false;
   have_delta_ = false;
@@ -82,9 +88,13 @@ void Jiggler::begin_legs(const int* dx, const int* dy, const int* steps, int cou
 }
 
 void Jiggler::begin_random() {
+  if (rand_ == nullptr) {
+    rand_ = fallback_rand;
+  }
   const int distance = static_cast<int>(rand_(rand_ctx_, kJiggleMinPx, kJiggleMaxPx + 1));
   static constexpr int kAxis[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-  const int axis = static_cast<int>(rand_(rand_ctx_, 0, 4));
+  const int raw_axis = static_cast<int>(rand_(rand_ctx_, 0, 4));
+  const int axis = (raw_axis % 4 + 4) % 4;
   const int dx = kAxis[axis][0] * distance;
   const int dy = kAxis[axis][1] * distance;
   const int span = kJiggleMaxPx - kJiggleMinPx;
@@ -113,12 +123,12 @@ void Jiggler::enforce_limit(uint32_t now_ms) {
     return;
   }
   const uint32_t elapsed = now_ms - start_ms_;
-  const uint32_t limit = static_cast<uint32_t>(kHoursToRun * 60.0f * 60.0f * 1000.0f);
-  if (elapsed < limit) {
+  if (elapsed < kRunLimitMs) {
     return;
   }
   time_up_ = true;
   enabled_ = false;
+  frozen_left_s_ = 0;
   moving_ = false;
   have_delta_ = false;
 }
@@ -194,7 +204,7 @@ void Jiggler::ack() {
   }
 }
 
-int Jiggler::countdown_bucket_s(uint32_t now_ms) const {
+int Jiggler::countdown_s(uint32_t now_ms) const {
   if (!enabled_ || moving_) {
     return -1;
   }
@@ -202,19 +212,18 @@ int Jiggler::countdown_bucket_s(uint32_t now_ms) const {
     return -1;
   }
   const uint32_t remain_s = (next_ms_ - now_ms + 999u) / 1000u;
-  const int bucket = static_cast<int>(((remain_s + 4u) / 5u) * 5u);
-  return bucket > 0 ? bucket : -1;
+  return remain_s > 0 ? static_cast<int>(remain_s) : -1;
 }
 
 uint32_t Jiggler::run_left_s(uint32_t now_ms) const {
-  const uint32_t limit = static_cast<uint32_t>(kHoursToRun * 60.0f * 60.0f * 1000.0f);
+  if (!enabled_) {
+    return frozen_left_s_;
+  }
   const uint32_t elapsed = now_ms - start_ms_;
-  if (elapsed >= limit) {
+  if (elapsed >= kRunLimitMs) {
     return 0;
   }
-  // Same 5 s step as the next-jiggle countdown. An 8 h readout does not need a 1 s tick.
-  const uint32_t remain_s = (limit - elapsed + 999u) / 1000u;
-  return ((remain_s + 4u) / 5u) * 5u;
+  return (kRunLimitMs - elapsed + 999u) / 1000u;
 }
 
 }  // namespace kmj

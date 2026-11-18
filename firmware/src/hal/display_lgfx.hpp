@@ -15,5 +15,7 @@ class LGFX : public lgfx::LGFX_Device {
 
 LGFX& display();
 void display_init();
+bool display_ready();
+void display_show_bootloader();
 
 }  // namespace kmj

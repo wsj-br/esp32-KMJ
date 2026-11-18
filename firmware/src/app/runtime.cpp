@@ -1,6 +1,7 @@
 #include "app/runtime.hpp"
 
 #include <Arduino.h>
+#include <esp_random.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
@@ -8,12 +9,15 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app/debug_log.hpp"
 #include "app/hid_device.hpp"
 #include "app/improv_ble.hpp"
 #include "app/km_server.hpp"
 #include "app/net_wifi.hpp"
 #include "app/settings.hpp"
+#include "app/setup_mode.hpp"
 #include "hal/backlight.hpp"
+#include "hal/display_lgfx.hpp"
 #include "hal/pmu_sy6970.hpp"
 #include "logic/jiggler.hpp"
 #include "pins.hpp"
@@ -39,37 +43,10 @@ Model g_ui;
 Jiggler g_jiggler;
 uint32_t g_prev_keys = 0;
 uint32_t g_pmu_ms = 0;
-bool g_identify = false;
-bool g_setup_hold = false;
-bool g_setup_req = false;
 bool g_setup_fail = false;
-bool g_setup_busy = false;
-uint32_t g_setup_at = 0;
-bool g_setup_was_on = false;
-TaskHandle_t g_ui_task = nullptr;
-volatile bool g_release_draw = false;
-volatile bool g_draw_released = false;
-
-void gate_ui(bool pause) {
-  if (g_ui_task == nullptr) {
-    return;
-  }
-  if (pause) {
-    g_release_draw = true;
-    const uint32_t deadline = millis() + 300;
-    while (!g_draw_released && static_cast<int32_t>(deadline - millis()) > 0) {
-      vTaskDelay(pdMS_TO_TICKS(1));
-    }
-    vTaskSuspend(g_ui_task);
-    return;
-  }
-  vTaskResume(g_ui_task);
-  g_release_draw = false;
-  const uint32_t deadline = millis() + 300;
-  while (g_draw_released && static_cast<int32_t>(deadline - millis()) > 0) {
-    vTaskDelay(pdMS_TO_TICKS(1));
-  }
-}
+volatile bool g_ui_started = false;
+volatile bool g_halting_for_bootloader = false;
+volatile bool g_ui_halted = false;
 
 class RuntimeHost : public Host {
  public:
@@ -84,17 +61,31 @@ class RuntimeHost : public Host {
 
 RuntimeHost g_host;
 
+long jiggler_rand(void*, long lo, long hi) {
+  if (hi <= lo) {
+    return lo;
+  }
+  const uint32_t span = static_cast<uint32_t>(hi - lo);
+  const uint32_t limit = UINT32_MAX - (UINT32_MAX % span);
+  uint32_t r = esp_random();
+  while (r >= limit) {
+    r = esp_random();
+  }
+  return lo + static_cast<long>(r % span);
+}
+
 void push_trace(int8_t value) {
   g_live.trace[g_live.trace_i % 48] = value;
   g_live.trace_i = static_cast<uint8_t>((g_live.trace_i + 1) % 48);
 }
 
 void leave_functions(bool stop_listener) {
-  g_jiggler.stop();
+  g_jiggler.stop(millis());
   km_set_inject(false);
   if (stop_listener) {
     km_arm(false);
     km_stop();
+    g_live.pair_armed = false;
     net_advertise(false, g_live.device_name, kKmPort);
   }
 }
@@ -107,9 +98,6 @@ void apply(const CmdMsg& msg) {
       break;
     case Cmd::EnterKm:
       leave_functions(true);
-      if (improv_active()) {
-        improv_stop();
-      }
       g_live.mode = Mode::Km;
       km_start();
       km_set_inject(true);
@@ -121,7 +109,7 @@ void apply(const CmdMsg& msg) {
       g_jiggler.start(millis());
       break;
     case Cmd::EnterConfig:
-      leave_functions(!g_live.pair_armed);
+      leave_functions(true);
       g_live.mode = Mode::Config;
       break;
     case Cmd::ScreenOn:
@@ -157,7 +145,7 @@ void apply(const CmdMsg& msg) {
       if (msg.arg) {
         g_jiggler.start(millis());
       } else {
-        g_jiggler.stop();
+        g_jiggler.stop(millis());
       }
       break;
     case Cmd::UsbWanted:
@@ -189,19 +177,13 @@ void apply(const CmdMsg& msg) {
       settings_remove_peer(msg.arg);
       break;
     case Cmd::StartImprov:
+      KMJ_LOG("cmd StartImprov mode=%d", static_cast<int>(g_live.mode));
       if (g_live.mode == Mode::Km) {
         break;
       }
-      g_setup_fail = false;
-      g_setup_hold = true;
-      g_setup_req = true;
-      g_setup_at = millis() + 250;
-      break;
-    case Cmd::ImprovAllow:
-      improv_authorize(true);
-      break;
-    case Cmd::ImprovDeny:
-      improv_authorize(false);
+      // Bluetooth does not fit beside the UI and Wi-Fi. Reboot into a build
+      // of the firmware that runs only Wi-Fi setup, and come back when it ends.
+      setup_mode_restart();
       break;
     case Cmd::ForgetWifi:
       settings_clear_wifi();
@@ -236,28 +218,11 @@ void refresh_live(uint32_t now) {
   for (int i = 0; i < cfg.peer_count && i < 4; i++) {
     peer_label(cfg.peers[i], g_live.peers[i], sizeof(g_live.peers[i]));
   }
-  g_live.improv_on = improv_active();
-  g_live.improv_ask = improv_needs_auth();
-  g_live.improv_state = improv_state();
-  if (g_setup_was_on && !g_live.improv_on && !g_setup_req && !g_setup_busy) {
-    g_setup_hold = false;
-  }
-  g_setup_was_on = g_live.improv_on;
-  if (g_live.improv_on) {
-    g_setup_fail = false;
-  }
-  g_live.setup_wait = g_setup_hold || g_live.improv_on;
   g_live.setup_fail = g_setup_fail;
   if (g_setup_fail) {
     snprintf(g_live.setup_note, sizeof(g_live.setup_note), "%s", improv_fail_text());
   } else {
     g_live.setup_note[0] = '\0';
-  }
-  const char* setup_line = improv_status_line();
-  if (setup_line != nullptr) {
-    snprintf(g_live.setup_line, sizeof(g_live.setup_line), "%s", setup_line);
-  } else {
-    g_live.setup_line[0] = '\0';
   }
 
   const KmView km = km_view();
@@ -288,7 +253,7 @@ void refresh_live(uint32_t now) {
   g_live.jiggler_run = g_jiggler.enabled();
   g_live.jiggler_moving = g_jiggler.moving();
   g_live.nudge = g_jiggler.nudging();
-  g_live.next_jiggle_s = g_jiggler.countdown_bucket_s(now);
+  g_live.next_jiggle_s = g_jiggler.countdown_s(now);
   g_live.run_left_s = g_jiggler.run_left_s(now);
   g_live.jiggle_count = g_jiggler.jiggle_count();
   g_live.time_up = g_jiggler.time_up();
@@ -306,10 +271,6 @@ void refresh_live(uint32_t now) {
     g_live.charging = power.charging;
     g_live.vbus = power.vbus;
   }
-  if (g_identify) {
-    backlight_set(g_live.screen_on ? 4 : static_cast<uint8_t>(g_live.backlight));
-    g_identify = false;
-  }
 }
 
 void io_task(void*) {
@@ -319,24 +280,7 @@ void io_task(void*) {
       apply(msg);
     }
     const uint32_t now = millis();
-    char ssid[33];
-    char pass[65];
-    if (improv_take_wifi(ssid, sizeof(ssid), pass, sizeof(pass))) {
-      settings_save_wifi(ssid, pass);
-      net_connect(ssid, pass);
-    }
     net_poll();
-    if (g_setup_req && !g_setup_busy && static_cast<int32_t>(now - g_setup_at) >= 0) {
-      g_setup_req = false;
-      g_setup_busy = true;
-      const bool started = improv_start();
-      g_setup_busy = false;
-      if (!started) {
-        g_setup_hold = false;
-        g_setup_fail = true;
-      }
-    }
-    improv_poll(now);
     if (g_live.mode == Mode::Km || g_live.pair_armed) {
       km_poll(now);
       net_advertise(true, settings().device_name, kKmPort);
@@ -364,18 +308,16 @@ void io_task(void*) {
 void ui_task(void*) {
   lvgl_port_init();
   ui_init(g_host);
+  g_ui_started = true;
   while (true) {
-    if (g_release_draw) {
-      if (!g_draw_released) {
-        lvgl_port_drop_spare();
-        g_draw_released = true;
+    if (g_halting_for_bootloader) {
+      if (backlight_ready() && backlight_level() == 0) {
+        const int level = settings().backlight > 0 ? settings().backlight : kBacklightMax;
+        backlight_set(static_cast<uint8_t>(level));
       }
-      vTaskDelay(pdMS_TO_TICKS(5));
-      continue;
-    }
-    if (g_draw_released) {
-      lvgl_port_restore_spare();
-      g_draw_released = false;
+      display_show_bootloader();
+      g_ui_halted = true;
+      vTaskSuspend(nullptr);
     }
     if (xSemaphoreTake(g_lock, pdMS_TO_TICKS(5)) == pdTRUE) {
       g_ui = g_published;
@@ -399,12 +341,38 @@ void runtime_start() {
   g_live.screen_on = true;
   g_published = g_live;
   g_ui = g_live;
-  improv_set_identify([]() { g_identify = true; });
-  improv_set_gate(gate_ui);
+  improv_install_fault_hook();
+  if (improv_capture_fault()) {
+    g_setup_fail = true;
+    KMJ_LOG("previous run faulted: %s", improv_fail_text());
+  }
   g_queue = xQueueCreate(16, sizeof(CmdMsg));
   g_lock = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(io_task, "kmj-io", 20480, nullptr, 4, nullptr, 0);
-  xTaskCreatePinnedToCore(ui_task, "kmj-ui", 16384, nullptr, 3, &g_ui_task, 1);
+  g_jiggler.set_random(jiggler_rand, nullptr);
+  TaskHandle_t io_handle = nullptr;
+  TaskHandle_t ui_handle = nullptr;
+  xTaskCreatePinnedToCore(io_task, "kmj-io", 8192, nullptr, 4, &io_handle, 0);
+  xTaskCreatePinnedToCore(ui_task, "kmj-ui", 12288, nullptr, 3, &ui_handle, 1);
+  KMJ_LOG_WATCH("io", io_handle);
+  KMJ_LOG_WATCH("ui", ui_handle);
+}
+
+void runtime_show_bootloader_and_halt() {
+  if (g_ui_started) {
+    g_halting_for_bootloader = true;
+    const uint32_t deadline = millis() + 250;
+    while (!g_ui_halted && static_cast<int32_t>(millis() - deadline) < 0) {
+      vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    if (g_ui_halted) {
+      return;
+    }
+  }
+  if (backlight_ready() && backlight_level() == 0) {
+    const int level = settings().backlight > 0 ? settings().backlight : kBacklightMax;
+    backlight_set(static_cast<uint8_t>(level));
+  }
+  display_show_bootloader();
 }
 
 }  // namespace kmj

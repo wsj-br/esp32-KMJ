@@ -6,6 +6,7 @@
 #include <lvgl.h>
 
 #include "pins.hpp"
+#include "ui/build_stamp.hpp"
 
 extern "C" {
 extern const lv_font_t font_chakra_16;
@@ -37,7 +38,6 @@ bool g_home_down = false;
 uint32_t g_home_t0 = 0;
 bool g_home_long = false;
 uint32_t g_home_lock = 0;
-bool g_setup_msg = false;
 bool g_wait_release = false;
 
 lv_obj_t* g_wifi = nullptr;
@@ -47,6 +47,9 @@ lv_obj_t* g_km_state = nullptr;
 lv_obj_t* g_km_meta = nullptr;
 lv_obj_t* g_km_counts = nullptr;
 lv_obj_t* g_km_key = nullptr;
+lv_obj_t* g_km_paired = nullptr;
+lv_obj_t* g_km_pair_btn = nullptr;
+lv_obj_t* g_km_pair_label = nullptr;
 lv_obj_t* g_line = nullptr;
 lv_obj_t* g_jig_state = nullptr;
 lv_obj_t* g_jig_counts = nullptr;
@@ -58,9 +61,10 @@ lv_obj_t* g_home_km = nullptr;
 lv_obj_t* g_home_jig = nullptr;
 lv_obj_t* g_home_cfg = nullptr;
 lv_obj_t* g_cfg_info = nullptr;
+lv_obj_t* g_cfg_setup = nullptr;
+lv_obj_t* g_cfg_forget = nullptr;
 lv_obj_t* g_pair = nullptr;
 lv_obj_t* g_pair_code = nullptr;
-lv_obj_t* g_auth = nullptr;
 lv_point_precise_t g_points[48];
 
 lv_obj_t* screen_base() {
@@ -71,7 +75,7 @@ lv_obj_t* screen_base() {
   lv_obj_set_style_text_font(scr, &font_chakra_16, 0);
   lv_obj_set_style_pad_all(scr, 0, 0);
   lv_obj_set_style_border_width(scr, 0, 0);
-  lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollable(scr, false);
   return scr;
 }
 
@@ -93,13 +97,15 @@ void style_tile(lv_obj_t* obj, uint32_t accent) {
   lv_obj_set_style_bg_color(rail, lv_color_hex(accent), 0);
   lv_obj_set_style_border_width(rail, 0, 0);
   lv_obj_set_style_radius(rail, 2, 0);
-  lv_obj_remove_flag(rail, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_clickable(rail, false);
 }
 
 void clear_screen_ptrs() {
-  g_km_state = g_km_meta = g_km_counts = g_km_key = g_line = nullptr;
+  g_km_state = g_km_meta = g_km_counts = g_km_key = g_km_paired = nullptr;
+  g_km_pair_btn = g_km_pair_label = g_line = nullptr;
   g_jig_state = g_jig_counts = g_run_btn = g_run_label = g_usb_label = g_timeout_label = nullptr;
-  g_home_km = g_home_jig = g_home_cfg = g_cfg_info = nullptr;
+  g_home_km = g_home_jig = g_home_cfg = nullptr;
+  g_cfg_info = g_cfg_setup = g_cfg_forget = nullptr;
 }
 
 lv_obj_t* label(lv_obj_t* parent, const char* text, const lv_font_t* font, uint32_t color) {
@@ -107,7 +113,7 @@ lv_obj_t* label(lv_obj_t* parent, const char* text, const lv_font_t* font, uint3
   lv_label_set_text(lab, text);
   lv_obj_set_style_text_font(lab, font, 0);
   lv_obj_set_style_text_color(lab, lv_color_hex(color), 0);
-  lv_obj_remove_flag(lab, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_clickable(lab, false);
   return lab;
 }
 
@@ -142,7 +148,7 @@ lv_obj_t* make_trace(lv_obj_t* parent) {
   lv_line_set_points(line, g_points, 48);
   lv_obj_set_style_line_width(line, 2, 0);
   lv_obj_set_style_line_color(line, lv_color_hex(kCyan), 0);
-  lv_obj_remove_flag(line, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_clickable(line, false);
   return line;
 }
 
@@ -196,8 +202,18 @@ lv_obj_t* make_km() {
   lv_obj_set_pos(g_km_counts, 16, kStatusH + 86);
   g_km_key = label(scr, "", &font_plex_14, kAmber);
   lv_obj_set_pos(g_km_key, 300, kStatusH + 40);
+  g_km_paired = label(scr, "Not paired", &font_plex_14, kDim);
+  lv_obj_set_pos(g_km_paired, 300, kStatusH + 6);
+  lv_obj_set_width(g_km_paired, 164);
+  lv_label_set_long_mode(g_km_paired, LV_LABEL_LONG_CLIP);
   g_line = make_trace(scr);
   lv_obj_set_pos(g_line, 16, kStatusH + 120);
+  g_km_pair_btn = lv_button_create(scr);
+  lv_obj_set_size(g_km_pair_btn, 120, 32);
+  lv_obj_set_pos(g_km_pair_btn, 216, 176);
+  lv_obj_set_style_bg_color(g_km_pair_btn, lv_color_hex(kPanel), 0);
+  g_km_pair_label = label(g_km_pair_btn, "Pair", &font_plex_14, kText);
+  lv_obj_add_event_cb(g_km_pair_btn, [](lv_event_t*) { g_host->command(Cmd::ArmPair, 0); }, LV_EVENT_CLICKED, nullptr);
   lv_obj_t* disc = lv_button_create(scr);
   lv_obj_set_size(disc, 120, 32);
   lv_obj_set_pos(disc, 344, 176);
@@ -286,7 +302,7 @@ lv_obj_t* action_button(lv_obj_t* parent, const char* text, int x, int y, int w,
   lv_obj_set_size(btn, w, 32);
   lv_obj_set_style_bg_color(btn, lv_color_hex(kPanel), 0);
   lv_obj_set_style_radius(btn, 6, 0);
-  lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollable(btn, false);
   label(btn, text, &font_plex_14, kText);
   lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, user);
   return btn;
@@ -294,9 +310,6 @@ lv_obj_t* action_button(lv_obj_t* parent, const char* text, int x, int y, int w,
 
 void on_cmd_button(lv_event_t* e) {
   const Cmd cmd = static_cast<Cmd>(reinterpret_cast<uintptr_t>(lv_event_get_user_data(e)));
-  if (cmd == Cmd::StartImprov) {
-    g_setup_msg = true;
-  }
   g_host->command(cmd, 0);
 }
 
@@ -307,12 +320,12 @@ lv_obj_t* make_config() {
   lv_obj_set_pos(title, 84, kStatusH + 6);
 
   const int y0 = kStatusH + 40;
-  action_button(scr, "Wi-Fi setup", 8, y0, 128, on_cmd_button, reinterpret_cast<void*>(static_cast<uintptr_t>(Cmd::StartImprov)));
-  action_button(scr, "Forget Wi-Fi", 144, y0, 140, on_cmd_button, reinterpret_cast<void*>(static_cast<uintptr_t>(Cmd::ForgetWifi)));
-  lv_obj_t* pair = action_button(scr, "Pair", 292, y0, 56, on_cmd_button, reinterpret_cast<void*>(static_cast<uintptr_t>(Cmd::ArmPair)));
-  lv_obj_set_style_pad_hor(pair, 8, 0);
+  // One Wi-Fi button at a time: setup while offline, forget while connected.
+  g_cfg_setup = action_button(scr, "Wi-Fi setup", 8, y0, 140, on_cmd_button, reinterpret_cast<void*>(static_cast<uintptr_t>(Cmd::StartImprov)));
+  g_cfg_forget = action_button(scr, "Forget Wi-Fi", 8, y0, 140, on_cmd_button, reinterpret_cast<void*>(static_cast<uintptr_t>(Cmd::ForgetWifi)));
+  lv_obj_set_hidden(g_cfg_forget, true);
   const char* timeout = timeout_caption(g_host->model().screen_off_sec);
-  lv_obj_t* blank = action_button(scr, timeout != nullptr ? timeout : "Timeout", 356, y0, 116, cycle_timeout, nullptr);
+  lv_obj_t* blank = action_button(scr, timeout != nullptr ? timeout : "Timeout", 156, y0, 116, cycle_timeout, nullptr);
   lv_obj_set_style_pad_hor(blank, 4, 0);
   g_timeout_label = lv_obj_get_child(blank, 0);
   lv_label_set_long_mode(g_timeout_label, LV_LABEL_LONG_CLIP);
@@ -333,6 +346,9 @@ lv_obj_t* make_config() {
   lv_obj_set_pos(g_cfg_info, 8, y0 + 80);
   lv_obj_set_width(g_cfg_info, 464);
   lv_label_set_long_mode(g_cfg_info, LV_LABEL_LONG_CLIP);
+
+  lv_obj_t* build = label(scr, build_timestamp(), &font_plex_14, kDim);
+  lv_obj_align(build, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
   return scr;
 }
 
@@ -402,30 +418,7 @@ void ensure_overlays() {
     lv_obj_align(no, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
     label(no, "Cancel", &font_plex_14, kText);
     lv_obj_add_event_cb(no, [](lv_event_t*) { g_host->command(Cmd::CancelPair, 0); }, LV_EVENT_CLICKED, nullptr);
-    lv_obj_add_flag(g_pair, LV_OBJ_FLAG_HIDDEN);
-  }
-  if (g_auth == nullptr) {
-    g_auth = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(g_auth, 400, 132);
-    lv_obj_center(g_auth);
-    lv_obj_set_style_bg_color(g_auth, lv_color_hex(0x10141A), 0);
-    lv_obj_set_style_border_color(g_auth, lv_color_hex(kAmber), 0);
-    lv_obj_set_style_border_width(g_auth, 1, 0);
-    lv_obj_t* ask = label(g_auth, "Waiting for Wi-Fi config via Bluetooth", &font_plex_14, kAmber);
-    lv_obj_align(ask, LV_ALIGN_TOP_MID, 0, 6);
-    lv_obj_t* hint = label(g_auth, "Tap Allow, then use the KMJ app", &font_plex_14, kDim);
-    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 28);
-    lv_obj_t* allow = lv_button_create(g_auth);
-    lv_obj_set_size(allow, 90, 28);
-    lv_obj_align(allow, LV_ALIGN_BOTTOM_LEFT, 8, -8);
-    label(allow, "Allow", &font_plex_14, kText);
-    lv_obj_add_event_cb(allow, [](lv_event_t*) { g_host->command(Cmd::ImprovAllow, 0); }, LV_EVENT_CLICKED, nullptr);
-    lv_obj_t* deny = lv_button_create(g_auth);
-    lv_obj_set_size(deny, 90, 28);
-    lv_obj_align(deny, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
-    label(deny, "Deny", &font_plex_14, kText);
-    lv_obj_add_event_cb(deny, [](lv_event_t*) { g_host->command(Cmd::ImprovDeny, 0); }, LV_EVENT_CLICKED, nullptr);
-    lv_obj_add_flag(g_auth, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(g_pair, true);
   }
 }
 
@@ -433,11 +426,7 @@ void show(lv_obj_t* obj, bool visible) {
   if (obj == nullptr) {
     return;
   }
-  if (visible) {
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
-  } else {
-    lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-  }
+  lv_obj_set_hidden(obj, !visible);
 }
 
 void build_status() {
@@ -450,8 +439,8 @@ void build_status() {
   lv_obj_set_style_border_width(bar, 0, 0);
   lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, 0);
   lv_obj_set_style_pad_all(bar, 0, 0);
-  lv_obj_remove_flag(bar, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_clickable(bar, false);
+  lv_obj_set_scrollable(bar, false);
   g_wifi = label(bar, "Wi-Fi", &font_plex_14, kDim);
   lv_obj_set_pos(g_wifi, 8, 4);
   lv_obj_set_width(g_wifi, 360);
@@ -464,26 +453,15 @@ void build_status() {
 
 void paint_status(const Model& model) {
   char buf[64];
-  const bool waiting = g_setup_msg || model.setup_line[0] != '\0';
-  if (model.setup_fail && !model.improv_on && model.setup_line[0] == '\0') {
-    snprintf(buf, sizeof(buf), "%s", model.setup_note[0] ? model.setup_note : "Bluetooth did not start");
-    lv_obj_set_style_text_color(g_wifi, lv_color_hex(kAmber), 0);
-  } else if (waiting) {
-    snprintf(buf, sizeof(buf), "%s", model.setup_line[0] ? model.setup_line : "Waiting for Wi-Fi config via Bluetooth");
-    lv_obj_set_style_text_color(g_wifi, lv_color_hex(kAmber), 0);
-  } else if (model.wifi_connected) {
+  if (model.wifi_connected) {
     snprintf(buf, sizeof(buf), "%s %ddB", model.wifi_ssid[0] ? model.wifi_ssid : "link", model.rssi);
-    lv_obj_set_style_text_color(g_wifi, lv_color_hex(kDim), 0);
   } else if (model.wifi_saved) {
     snprintf(buf, sizeof(buf), "Wi-Fi ...");
-    lv_obj_set_style_text_color(g_wifi, lv_color_hex(kDim), 0);
   } else {
     snprintf(buf, sizeof(buf), "Wi-Fi off");
-    lv_obj_set_style_text_color(g_wifi, lv_color_hex(kDim), 0);
   }
+  lv_obj_set_style_text_color(g_wifi, lv_color_hex(kDim), 0);
   lv_label_set_text(g_wifi, buf);
-  const bool setup_line = waiting || (model.setup_fail && !model.improv_on);
-  show(g_ip, !setup_line);
   lv_label_set_text(g_ip, model.ip);
   if (model.vbus) {
     snprintf(buf, sizeof(buf), "USB");
@@ -546,6 +524,29 @@ void paint_screen(const Model& model) {
     lv_label_set_text(g_km_key, buf);
     paint_trace(model);
   }
+  if (g_km_paired != nullptr) {
+    if (model.pair_armed) {
+      lv_label_set_text(g_km_paired, "Waiting to pair");
+      lv_obj_set_style_text_color(g_km_paired, lv_color_hex(kCyan), 0);
+    } else if (model.peer_count > 0) {
+      if (model.peer_count == 1) {
+        snprintf(buf, sizeof(buf), "Paired  %s", model.peers[0]);
+      } else {
+        snprintf(buf, sizeof(buf), "Paired  %d desktops", model.peer_count);
+      }
+      lv_label_set_text(g_km_paired, buf);
+      lv_obj_set_style_text_color(g_km_paired, lv_color_hex(kCyan), 0);
+    } else {
+      lv_label_set_text(g_km_paired, "Not paired");
+      lv_obj_set_style_text_color(g_km_paired, lv_color_hex(kDim), 0);
+    }
+  }
+  if (g_km_pair_btn != nullptr && g_km_pair_label != nullptr) {
+    const bool armed = model.pair_armed;
+    lv_label_set_text(g_km_pair_label, armed ? "Waiting" : "Pair");
+    lv_obj_set_style_text_color(g_km_pair_label, lv_color_hex(armed ? kCyan : kText), 0);
+    lv_obj_set_style_bg_color(g_km_pair_btn, lv_color_hex(armed ? 0x143F3A : kPanel), 0);
+  }
   if (g_jig_state != nullptr) {
     if (model.nudge) {
       snprintf(buf, sizeof(buf), "nudge %d/%d", model.nudge_leg, model.nudge_legs);
@@ -590,20 +591,11 @@ void paint_screen(const Model& model) {
     } else {
       snprintf(power, sizeof(power), "no battery");
     }
-    const bool waiting = g_setup_msg || model.setup_line[0] != '\0';
-    if (model.setup_line[0] != '\0' || model.setup_wait || model.improv_on || model.setup_fail) {
-      g_setup_msg = false;
-    }
-    if (model.setup_fail && !model.improv_on && model.setup_line[0] == '\0') {
+    if (model.setup_fail) {
       snprintf(buf, sizeof(buf), "%s\nBattery  %s%s\n%s  rssi %d\nheap %lu  up %lus",
-               model.setup_note[0] ? model.setup_note : "Bluetooth did not start", power,
+               model.setup_note[0] ? model.setup_note : "Wi-Fi setup failed", power,
                model.charging ? "  charging" : "", model.wifi_connected ? model.wifi_ssid : "Wi-Fi off", model.rssi,
                static_cast<unsigned long>(model.heap_free), static_cast<unsigned long>(model.uptime_s));
-    } else if (waiting) {
-      const char* step = model.setup_line[0] ? model.setup_line : "Waiting for Wi-Fi config via Bluetooth";
-      snprintf(buf, sizeof(buf), "%s\nBattery  %s%s\n%s  rssi %d\n%s", step, power, model.charging ? "  charging" : "",
-               model.wifi_connected ? model.wifi_ssid : "Wi-Fi off", model.rssi,
-               model.vbus ? "Power  USB" : "Power  battery");
     } else {
       snprintf(buf, sizeof(buf), "%s\nBattery  %s%s\n%s  rssi %d\nheap %lu  up %lus",
                model.vbus ? "Power  USB" : "Power  battery", power, model.charging ? "  charging" : "",
@@ -611,9 +603,10 @@ void paint_screen(const Model& model) {
                static_cast<unsigned long>(model.heap_free), static_cast<unsigned long>(model.uptime_s));
     }
     lv_label_set_text(g_cfg_info, buf);
-    const bool active = waiting || (model.setup_fail && !model.improv_on);
-    lv_obj_set_style_text_color(g_cfg_info, lv_color_hex(active ? kAmber : kDim), 0);
+    lv_obj_set_style_text_color(g_cfg_info, lv_color_hex(model.setup_fail ? kAmber : kDim), 0);
   }
+  show(g_cfg_setup, !model.wifi_connected);
+  show(g_cfg_forget, model.wifi_connected);
 }
 
 void on_home(bool down, uint32_t now) {
@@ -695,7 +688,6 @@ void ui_tick(uint32_t now_ms) {
     lv_label_set_text(g_pair_code, model.pair_code);
   }
   show(g_pair, model.pair_show);
-  show(g_auth, g_screen_on && model.improv_ask && !model.pair_show);
   show(g_wifi, g_screen_on);
   apply_nav();
 }

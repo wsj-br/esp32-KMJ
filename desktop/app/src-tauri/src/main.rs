@@ -6,7 +6,7 @@ mod improv;
 
 use kmj_capture::{open as open_capture, InputCapture};
 use kmj_client::{
-    apply_capture, discover, parse_hotkey, start_pairing, start_session, Endpoint, GrabFsm, Pairing, SecureLink,
+    apply_capture, discover, parse_hotkey, start_pairing, start_session, GrabFsm, KnownDevice, Pairing, SecureLink,
     Store,
 };
 use serde::Serialize;
@@ -33,14 +33,17 @@ struct Status {
 
 #[derive(Serialize, Clone)]
 struct DeviceRow {
+    id: String,
     name: String,
     host: String,
     port: u16,
+    paired: bool,
 }
 
-impl From<Endpoint> for DeviceRow {
-    fn from(endpoint: Endpoint) -> Self {
-        Self { name: endpoint.name, host: endpoint.host, port: endpoint.port }
+impl DeviceRow {
+    fn from_known(device: KnownDevice, peers: &[[u8; 32]]) -> Self {
+        let paired = device.is_paired(peers);
+        Self { id: device.id, name: device.name, host: device.host, port: device.port, paired }
     }
 }
 
@@ -58,8 +61,11 @@ fn status(state: State<AppState>) -> Status {
 }
 
 #[tauri::command]
-fn scan() -> Vec<DeviceRow> {
-    discover(Duration::from_millis(800)).into_iter().map(DeviceRow::from).collect()
+fn scan(state: State<AppState>) -> Result<Vec<DeviceRow>, String> {
+    let endpoints = discover(Duration::from_millis(1500));
+    let mut store = state.0.store.lock().map_err(|e| e.to_string())?;
+    store.replace_devices(&endpoints).map_err(|e| e.to_string())?;
+    Ok(store.devices.clone().into_iter().map(|device| DeviceRow::from_known(device, &store.peers)).collect())
 }
 
 #[tauri::command]
@@ -72,10 +78,15 @@ fn pair(state: State<AppState>, host: String, port: u16) -> Result<String, Strin
 }
 
 #[tauri::command]
-fn confirm_pair(state: State<AppState>) -> Result<(), String> {
-    let pairing = state.0.pairing.lock().map_err(|e| e.to_string())?.take().ok_or("no pairing in progress")?;
-    let peer = pairing.confirm().map_err(|e| e.to_string())?;
-    state.0.store.lock().map_err(|e| e.to_string())?.add_peer(peer).map_err(|e| e.to_string())
+async fn confirm_pair(state: State<'_, AppState>) -> Result<(), String> {
+    let shared = Arc::clone(&state.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pairing = shared.pairing.lock().map_err(|e| e.to_string())?.take().ok_or("no pairing in progress")?;
+        let peer = pairing.confirm_with_timeout(Duration::from_secs(60)).map_err(|e| e.to_string())?;
+        shared.store.lock().map_err(|e| e.to_string())?.add_peer(peer).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

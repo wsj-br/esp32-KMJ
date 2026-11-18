@@ -1,5 +1,6 @@
 //! Desktop session: discovery, pairing, the encrypted link, and the capture state machine.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
@@ -105,6 +106,30 @@ pub struct Endpoint {
     pub name: String,
     pub host: String,
     pub port: u16,
+    pub identity: Option<[u8; 32]>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KnownDevice {
+    pub id: String,
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+}
+
+impl KnownDevice {
+    fn from_endpoint(endpoint: &Endpoint) -> Self {
+        let id = endpoint
+            .identity
+            .as_ref()
+            .map(|identity| hex(identity))
+            .unwrap_or_else(|| format!("{}:{}", endpoint.host, endpoint.port));
+        Self { id, name: endpoint.name.clone(), host: endpoint.host.clone(), port: endpoint.port }
+    }
+
+    pub fn is_paired(&self, peers: &[[u8; 32]]) -> bool {
+        parse_hex32(&self.id).is_ok_and(|identity| peers.contains(&identity))
+    }
 }
 
 pub fn discover(wait: Duration) -> Vec<Endpoint> {
@@ -117,20 +142,31 @@ pub fn discover(wait: Duration) -> Vec<Endpoint> {
         Err(_) => return Vec::new(),
     };
     let deadline = std::time::Instant::now() + wait;
-    let mut found = Vec::new();
+    let mut found = BTreeMap::new();
     while std::time::Instant::now() < deadline {
         if let Ok(event) = receiver.recv_timeout(Duration::from_millis(200)) {
             if let mdns_sd::ServiceEvent::ServiceResolved(info) = event {
-                let host = info.get_addresses().iter().next().map(|a| a.to_string()).unwrap_or_default();
+                let addresses = info.get_addresses();
+                let host = addresses
+                    .iter()
+                    .find(|address| address.is_ipv4())
+                    .or_else(|| addresses.iter().next())
+                    .map(|address| address.to_string())
+                    .unwrap_or_default();
                 let name = info.get_property_val_str("name").unwrap_or(info.get_fullname()).to_string();
+                let identity = info.get_property_val_str("id").and_then(|value| parse_hex32(value).ok());
                 if !host.is_empty() {
-                    found.push(Endpoint { name, host, port: info.get_port() });
+                    let key = identity
+                        .as_ref()
+                        .map(|value| format!("id:{}", hex(value)))
+                        .unwrap_or_else(|| format!("service:{}", info.get_fullname()));
+                    found.insert(key, Endpoint { name, host, port: info.get_port(), identity });
                 }
             }
         }
     }
     let _ = daemon.shutdown();
-    found
+    found.into_values().collect()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -138,6 +174,8 @@ struct FileStore {
     priv_hex: String,
     peers: Vec<String>,
     hotkey: String,
+    #[serde(default)]
+    devices: Vec<KnownDevice>,
 }
 
 pub struct Store {
@@ -145,13 +183,15 @@ pub struct Store {
     pub identity: Identity,
     pub peers: Vec<[u8; 32]>,
     pub hotkey: String,
+    pub devices: Vec<KnownDevice>,
 }
 
 impl Store {
     pub fn load(path: PathBuf) -> Result<Self> {
         if !path.exists() {
             let identity = Identity::from_priv(random32());
-            let store = Self { path, identity, peers: Vec::new(), hotkey: "ctrl+alt+esc".into() };
+            let store =
+                Self { path, identity, peers: Vec::new(), hotkey: "ctrl+alt+esc".into(), devices: Vec::new() };
             store.save()?;
             return Ok(store);
         }
@@ -159,7 +199,7 @@ impl Store {
         let file: FileStore = serde_json::from_str(&text).map_err(|err| Error::Msg(err.to_string()))?;
         let identity = Identity::from_priv(parse_hex32(&file.priv_hex)?);
         let peers = file.peers.iter().map(|p| parse_hex32(p)).collect::<Result<Vec<_>>>()?;
-        Ok(Self { path, identity, peers, hotkey: file.hotkey })
+        Ok(Self { path, identity, peers, hotkey: file.hotkey, devices: file.devices })
     }
 
     pub fn save(&self) -> Result<()> {
@@ -170,6 +210,7 @@ impl Store {
             priv_hex: hex(&self.identity.priv_key),
             peers: self.peers.iter().map(|p| hex(p)).collect(),
             hotkey: self.hotkey.clone(),
+            devices: self.devices.clone(),
         };
         fs::write(&self.path, serde_json::to_string_pretty(&file).unwrap())?;
         Ok(())
@@ -178,6 +219,15 @@ impl Store {
     pub fn add_peer(&mut self, pub_key: [u8; 32]) -> Result<()> {
         if !self.peers.iter().any(|p| p == &pub_key) {
             self.peers.push(pub_key);
+            self.save()?;
+        }
+        Ok(())
+    }
+
+    pub fn replace_devices(&mut self, endpoints: &[Endpoint]) -> Result<()> {
+        let devices = endpoints.iter().map(KnownDevice::from_endpoint).collect::<Vec<_>>();
+        if self.devices != devices {
+            self.devices = devices;
             self.save()?;
         }
         Ok(())
@@ -191,11 +241,16 @@ pub struct Pairing {
 }
 
 impl Pairing {
-    pub fn confirm(mut self) -> Result<[u8; 32]> {
+    pub fn confirm(self) -> Result<[u8; 32]> {
+        self.confirm_with_timeout(Duration::from_secs(3))
+    }
+
+    pub fn confirm_with_timeout(mut self, timeout: Duration) -> Result<[u8; 32]> {
         self.link.confirm()?;
-        pump(&mut self.stream, &mut self.link, Duration::from_secs(3))?;
+        pump(&mut self.stream, &mut self.link, timeout)?;
         if !self.link.paired() {
-            return Err(Error::Msg(format!("pair failed: {}", self.link.fail())));
+            let reason = if self.link.fail().is_empty() { "confirmation timed out" } else { self.link.fail() };
+            return Err(Error::Msg(format!("pair failed: {reason}")));
         }
         Ok(*self.link.peer_pub())
     }
@@ -456,8 +511,25 @@ mod tests {
         let path = std::env::temp_dir().join(format!("kmj-test-{}-{}.json", std::process::id(), random32()[0]));
         let mut store = Store::load(path.clone()).unwrap();
         store.add_peer([1u8; 32]).unwrap();
-        let loaded = Store::load(path).unwrap();
-        assert_eq!(loaded.peers, vec![[1u8; 32]]);
+        store.add_peer([2u8; 32]).unwrap();
+        store.add_peer([1u8; 32]).unwrap();
+        store
+            .replace_devices(&[Endpoint {
+                name: "Desk board".into(),
+                host: "192.0.2.8".into(),
+                port: 42424,
+                identity: Some([1u8; 32]),
+            }])
+            .unwrap();
+        let loaded = Store::load(path.clone()).unwrap();
+        assert_eq!(loaded.peers, vec![[1u8; 32], [2u8; 32]]);
         assert_eq!(loaded.identity.pub_key, store.identity.pub_key);
+        assert_eq!(loaded.devices.len(), 1);
+        assert_eq!(loaded.devices[0].name, "Desk board");
+        assert!(loaded.devices[0].is_paired(&loaded.peers));
+
+        let mut loaded = loaded;
+        loaded.replace_devices(&[]).unwrap();
+        assert!(Store::load(path).unwrap().devices.is_empty());
     }
 }

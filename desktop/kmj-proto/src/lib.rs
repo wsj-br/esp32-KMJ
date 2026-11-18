@@ -763,8 +763,10 @@ mod tests {
         assert!(dev.waiting_confirm() && cli.waiting_confirm());
         assert_eq!(dev.pair_code(), "131422");
         assert_eq!(dev.pair_code(), cli.pair_code());
-        dev.confirm().unwrap();
         cli.confirm().unwrap();
+        exchange(&mut cli, &mut dev);
+        assert!(!dev.paired() && !cli.paired());
+        dev.confirm().unwrap();
         exchange(&mut cli, &mut dev);
         assert!(dev.paired() && cli.paired());
 

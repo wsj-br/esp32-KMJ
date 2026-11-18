@@ -5,33 +5,34 @@
 
 #include <NimBLEDevice.h>
 #include <WiFi.h>
+#include <esp_attr.h>
 #include <esp_bt.h>
 #include <esp_heap_caps.h>
+#include <esp_system.h>
 
 #include <string>
 
 #include "esp32-hal-alloc-ble-mem.h"
+#include "esp32-hal.h"
+#include "app/debug_log.hpp"
+#include "sdkconfig.h"
+
+static_assert(CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT == 4, "NimBLE pool override was not applied");
 
 #include "app/net_wifi.hpp"
 #include "app/settings.hpp"
 #include "logic/improv_rpc.hpp"
 #include "pins.hpp"
 
-// Arduino releases the BLE controller during boot unless something claims it.
-// NimBLE then faults inside the controller init, and the board reboots.
-extern "C" bool bleInUse(void) { return true; }
-
-// The controller fits in internal RAM. The host packet pools do not: after the
-// controller is up, the largest free block is about 7 KB and the pool allocate
-// fails. Those pools are ordinary RAM, so they go in PSRAM.
+// Every NimBLE buffer the controller can be handed must live in internal RAM.
+// A PSRAM block here makes the controller raise a hardware error, and that
+// used to reset the board.
 void* nimble_mem(size_t size, bool clear) {
-  // Command and event pools have to stay in internal RAM. The controller
-  // reads them while transmitting, and the large packet pools do not fit there.
-  const uint32_t caps = size <= 4096 ? (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) : (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  void* ptr = clear ? heap_caps_calloc(1, size, caps) : heap_caps_malloc(size, caps);
+  const uint32_t internal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+  void* ptr = clear ? heap_caps_calloc(1, size, internal) : heap_caps_malloc(size, internal);
   if (ptr == nullptr) {
-    const uint32_t other = size <= 4096 ? (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    ptr = clear ? heap_caps_calloc(1, size, other) : heap_caps_malloc(size, other);
+    const uint32_t external = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    ptr = clear ? heap_caps_calloc(1, size, external) : heap_caps_malloc(size, external);
   }
   return ptr;
 }
@@ -43,6 +44,45 @@ extern "C" void* __wrap_nimble_platform_mem_calloc(size_t n, size_t size) {
 }
 
 extern "C" void __wrap_nimble_platform_mem_free(void* ptr) { heap_caps_free(ptr); }
+
+struct BootFault {
+  uint32_t magic;
+  uint32_t pc;
+  uint8_t stage;
+  uint8_t core;
+  uint8_t trace_len;
+  char reason[20];
+  uint32_t trace[20];
+};
+
+constexpr uint32_t kFaultMagic = 0x4B4D4A46;
+RTC_NOINIT_ATTR BootFault g_boot_fault;
+
+void copy_reason(char* dst, size_t cap, const char* src) {
+  size_t i = 0;
+  if (src != nullptr) {
+    while (i + 1 < cap && src[i] != '\0') {
+      dst[i] = src[i];
+      i++;
+    }
+  }
+  dst[i] = '\0';
+}
+
+extern "C" void kmj_on_panic(arduino_panic_info_t* info, void*) {
+  g_boot_fault.magic = kFaultMagic;
+  g_boot_fault.pc = info != nullptr && info->pc != nullptr ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info->pc)) : 0;
+  g_boot_fault.core = info != nullptr ? static_cast<uint8_t>(info->core) : 0;
+  copy_reason(g_boot_fault.reason, sizeof(g_boot_fault.reason), info != nullptr ? info->reason : nullptr);
+  g_boot_fault.trace_len = 0;
+  if (info != nullptr) {
+    const unsigned cap = sizeof(g_boot_fault.trace) / sizeof(g_boot_fault.trace[0]);
+    for (unsigned i = 0; i < info->backtrace_len && i < cap; i++) {
+      g_boot_fault.trace[i] = info->backtrace[i];
+      g_boot_fault.trace_len = static_cast<uint8_t>(i + 1);
+    }
+  }
+}
 
 namespace kmj {
 namespace {
@@ -78,10 +118,17 @@ char g_pass[65] = {};
 uint8_t g_acc[220] = {};
 size_t g_acc_n = 0;
 void (*g_identify)() = nullptr;
-void (*g_gate)(bool) = nullptr;
 bool g_scanning = false;
 char g_fail[48] = {};
 uint32_t g_adv_ms = 0;
+
+void fault_stage(uint8_t stage) {
+  g_boot_fault.magic = kFaultMagic;
+  g_boot_fault.stage = stage;
+  if (stage == 1) {
+    g_boot_fault.trace_len = 0;
+  }
+}
 
 void publish_state(uint8_t state) {
   g_state_b = state;
@@ -168,6 +215,7 @@ void handle_packet(const ImprovPacket& pkt) {
     return;
   }
   if (pkt.command == 0x04) {
+    net_resume();
     WiFi.scanDelete();
     WiFi.scanNetworks(true);
     g_scanning = true;
@@ -280,13 +328,42 @@ void finish_scan() {
 
 }  // namespace
 
-void improv_set_identify(void (*fn)()) { g_identify = fn; }
+void improv_install_fault_hook() { set_arduino_panic_handler(kmj_on_panic, nullptr); }
 
-void improv_set_gate(void (*fn)(bool)) { g_gate = fn; }
+bool improv_capture_fault() {
+  const esp_reset_reason_t why = esp_reset_reason();
+  const bool fault = why == ESP_RST_PANIC || why == ESP_RST_INT_WDT || why == ESP_RST_TASK_WDT || why == ESP_RST_WDT ||
+                     why == ESP_RST_BROWNOUT;
+  if (!fault || g_boot_fault.magic != kFaultMagic || g_boot_fault.stage == 0) {
+    return false;
+  }
+  const char* kind = "reset";
+  if (why == ESP_RST_PANIC) {
+    kind = g_boot_fault.reason[0] != '\0' ? g_boot_fault.reason : "panic";
+  } else if (why == ESP_RST_INT_WDT) {
+    kind = "int wdt";
+  } else if (why == ESP_RST_TASK_WDT) {
+    kind = "task wdt";
+  } else if (why == ESP_RST_BROWNOUT) {
+    kind = "brownout";
+  } else if (why == ESP_RST_WDT) {
+    kind = "wdt";
+  }
+  snprintf(g_fail, sizeof(g_fail), "%s st%u", kind, g_boot_fault.stage);
+  KMJ_LOG("fault capture: %s stage %u pc 0x%08x core %u", kind, static_cast<unsigned>(g_boot_fault.stage),
+          static_cast<unsigned>(g_boot_fault.pc), static_cast<unsigned>(g_boot_fault.core));
+  for (unsigned i = 0; i < g_boot_fault.trace_len && i < 20; i++) {
+    KMJ_LOG("  bt[%u] 0x%08x", i, static_cast<unsigned>(g_boot_fault.trace[i]));
+  }
+  g_boot_fault.stage = 0;
+  return true;
+}
+
+void improv_set_identify(void (*fn)()) { g_identify = fn; }
 
 const char* improv_fail_text() { return g_fail; }
 
-bool improv_start() {
+bool improv_start(bool keep_wifi) {
   g_notice = Notice::None;
   if (g_on) {
     if (g_state_b == kAuthRequired) {
@@ -294,12 +371,16 @@ bool improv_start() {
     }
     return true;
   }
-  if (g_gate != nullptr) {
-    g_gate(true);
-  }
+  fault_stage(1);
   net_hold(true);
-  net_pause();
+  if (!keep_wifi) {
+    net_pause();
+  }
+  fault_stage(2);
+  KMJ_LOG_HEAP("before ble");
   const bool ready = NimBLEDevice::init(settings().device_name);
+  KMJ_LOG("ble: init returned %d, controller status %d", ready ? 1 : 0, static_cast<int>(esp_bt_controller_get_status()));
+  KMJ_LOG_HEAP("after init");
   if (!ready) {
     const int status = static_cast<int>(esp_bt_controller_get_status());
     const unsigned kb =
@@ -311,12 +392,12 @@ bool improv_start() {
     }
     net_hold(false);
     net_resume();
-    if (g_gate != nullptr) {
-      g_gate(false);
-    }
+    fault_stage(0);
     return false;
   }
   g_fail[0] = '\0';
+  fault_stage(3);
+  KMJ_LOG("ble: create server");
   NimBLEServer* server = NimBLEDevice::createServer();
   NimBLEService* service = server->createService(kService);
   g_state = service->createCharacteristic(kStateUuid, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
@@ -334,12 +415,10 @@ bool improv_start() {
   g_on = true;
   g_ask = true;
   g_stop_at = 0;
-  net_resume();
-  delay(50);
-  advertise();
-  if (g_gate != nullptr) {
-    g_gate(false);
-  }
+  fault_stage(4);
+  KMJ_LOG("ble: advertise");
+  const bool advertising = advertise();
+  KMJ_LOG("ble: advertise returned %d", advertising ? 1 : 0);
   return true;
 }
 
@@ -349,7 +428,9 @@ void improv_stop() {
   }
   NimBLEDevice::getAdvertising()->stop();
   NimBLEDevice::deinit(true);
+  fault_stage(0);
   net_hold(false);
+  net_resume();
   g_state = nullptr;
   g_error = nullptr;
   g_result = nullptr;

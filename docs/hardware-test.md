@@ -4,7 +4,7 @@ These need a LilyGO T-Display-S3 Pro and a host. CI does not flash a board.
 
 1. Build `firmware` with `pio run -e kmj` and flash it. On Windows, Linux, and macOS, the board enumerates as a composite HID keyboard and mouse named `KMJ Composite`, VID `413C`, PID `250E`.
 2. From Configuration, tap Wi-Fi setup and Allow. In the desktop app, find the device and send a network. The status strip shows the SSID, RSSI, and IP. Forget Wi-Fi and confirm the strip returns to `Wi-Fi off`.
-3. Pair the desktop app. The six-digit codes match. Cancelling on either side does not store a peer. A second computer that has not paired is rejected.
+3. On KM Emulator, tap Pair. Pair the desktop app. The six-digit codes match. Cancelling on either side does not store a peer. A second computer that has not paired is rejected. The KM screen shows whether a desktop is stored.
 4. Connect and capture. Type, move, click, and scroll on the desktop. The target computer receives them. The KM screen counts keys and moves and shows the last key.
 5. Press Ctrl+Alt+Esc. The desktop overlay clears, the target receives no further keys, and no modifier stays down.
 6. Kill the desktop process while a key is held. Within 3 seconds the firmware releases every key and button.

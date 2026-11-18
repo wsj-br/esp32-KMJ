@@ -4,9 +4,9 @@ USB keyboard and mouse for the [LilyGO T-Display-S3 Pro](https://wiki.lilygo.cc/
 
 The panel is an LVGL instrument UI with three functions:
 
-- **KM Emulator** listens for an encrypted TCP session and injects HID reports into the computer the board is plugged into.
+- **KM Emulator** listens for an encrypted TCP session, pairs a desktop, and injects HID reports into the computer the board is plugged into.
 - **Mouse Jiggler** is the eased out-and-back motion from `esp32-Mouse-Jiggler`, with the same nudge.
-- **Configuration** joins Wi-Fi, pairs a desktop, and shows link, power, and system status.
+- **Configuration** joins Wi-Fi and shows link, power, and system status.
 
 The red-circle home key turns the backlight on, returns to the home screen, or turns the backlight off. A long press turns the backlight off and leaves the current function running.
 
@@ -20,13 +20,14 @@ The red-circle home key turns the backlight on, returns to the home screen, or t
 
 ## Firmware
 
-From `firmware/`, with the USB cable on the target computer:
+From the repository root, or with `pio` directly inside `firmware/`:
 
 ```bash
-pio run -e kmj -t upload
+./scripts/flash-firmware.sh kmj        # HID-only build (hold BOOT, tap RESET, release BOOT)
+./scripts/flash-firmware.sh kmj-debug  # HID + serial; auto-reboots into the bootloader
 ```
 
-`kmj` has no serial port while it is running. Hold **BOOT**, tap **RESET**, release **BOOT**, then upload. `kmj-debug` keeps a CDC port at 115200 so upload can reset the board. Disconnecting USB also drops that port.
+`kmj` has no serial port while it is running. Hold **BOOT**, tap **RESET**, release **BOOT**, then upload. `kmj-debug` keeps a CDC port at 115200 so `scripts/flash-firmware.sh kmj-debug` (via `firmware/tools/bootloader.py`) can reboot the board into download mode automatically without button presses. Disconnecting USB also drops that port.
 
 Host tests, which do not need the board:
 
@@ -36,7 +37,7 @@ pio test -e native -d firmware
 
 Pins, USB-OTG, and the reason the non-Pro variant macros must not be used are in `.cursor/rules/t-display-s3.mdc`.
 
-Wi-Fi setup starts on the device: Configuration, **Wi-Fi setup**, then **Allow**. In the desktop app, choose the device, enter the network, and send it. Bluetooth turns off once the board has joined, so it does not stay up during a KM session. Pairing is armed from Configuration. The device and the desktop each show a six-digit code. Confirming both sides stores the peer key. The protocol is in `proto/PROTOCOL.md`.
+Wi-Fi setup starts on the device: Configuration, **Wi-Fi setup**, then **Allow**. In the desktop app, choose the device, enter the network, and send it. Bluetooth turns off once the board has joined, so it does not stay up during a KM session. Pairing is armed from KM Emulator. The device and desktop each show a six-digit code. Confirming the match on the device completes pairing automatically in the desktop app. The protocol is in `proto/PROTOCOL.md`.
 
 ## Desktop
 

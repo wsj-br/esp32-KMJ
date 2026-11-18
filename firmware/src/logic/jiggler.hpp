@@ -12,7 +12,7 @@ class Jiggler {
  public:
   void set_random(RandFn fn, void* ctx);
   void start(uint32_t now_ms);
-  void stop();
+  void stop(uint32_t now_ms);
   void trigger_jiggle();
   void trigger_nudge();
 
@@ -30,7 +30,7 @@ class Jiggler {
   int leg_dx() const { return total_dx_; }
   int leg_dy() const { return total_dy_; }
   // -1 when there is no countdown to show.
-  int countdown_bucket_s(uint32_t now_ms) const;
+  int countdown_s(uint32_t now_ms) const;
   uint32_t run_left_s(uint32_t now_ms) const;
 
  private:
@@ -54,6 +54,7 @@ class Jiggler {
   uint32_t pending_now_ = 0;
   uint32_t start_ms_ = 0;
   uint32_t next_ms_ = 0;
+  uint32_t frozen_left_s_ = 8u * 60u * 60u;
   uint32_t jiggle_count_ = 0;
 
   static constexpr int kMaxLegs = 8;

@@ -27,8 +27,6 @@ enum class Cmd : uint8_t {
   CancelPair,
   RemovePeer,
   StartImprov,
-  ImprovAllow,
-  ImprovDeny,
   ForgetWifi,
   Reboot,
 };
@@ -77,13 +75,8 @@ struct Model {
   char pair_code[8] = {};
   char peers[4][18] = {};
   int peer_count = 0;
-  bool improv_on = false;
-  bool improv_ask = false;
-  bool setup_wait = false;
   bool setup_fail = false;
   char setup_note[48] = {};
-  char setup_line[48] = {};
-  uint8_t improv_state = 0;
   char device_name[20] = "KMJ";
   char version[12] = "0.1.0";
   uint32_t heap_free = 0;

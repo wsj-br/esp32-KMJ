@@ -8,6 +8,7 @@ namespace kmj {
 namespace {
 
 uint8_t g_level = 0;
+bool g_ready = false;
 
 void busy_wait_ms(uint32_t ms) {
   const uint32_t start = micros();
@@ -20,7 +21,11 @@ void busy_wait_ms(uint32_t ms) {
 void backlight_init() {
   pinMode(kBacklightPin, OUTPUT);
   backlight_set(kBacklightMax);
+  g_ready = true;
 }
+
+bool backlight_ready() { return g_ready; }
+uint8_t backlight_level() { return g_level; }
 
 void backlight_set(uint8_t value) {
   if (value > kBacklightMax) {

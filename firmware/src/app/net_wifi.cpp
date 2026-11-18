@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app/debug_log.hpp"
+#include "app/settings.hpp"
+
 namespace kmj {
 namespace {
 
@@ -20,6 +23,14 @@ char g_host[64] = {};
 char g_ssid[33] = {};
 char g_pass[65] = {};
 bool g_want = false;
+
+void identity_text(char out[65]) {
+  const uint8_t* identity = settings().identity.pub;
+  for (size_t i = 0; i < 32; i++) {
+    snprintf(out + i * 2, 3, "%02x", identity[i]);
+  }
+  out[64] = '\0';
+}
 
 }  // namespace
 
@@ -36,6 +47,7 @@ void net_begin(const char* hostname) {
 }
 
 void net_pause() {
+  KMJ_LOG("wifi: pause");
   g_paused = true;
   if (g_mdns_up) {
     MDNS.end();
@@ -43,11 +55,11 @@ void net_pause() {
     g_service = false;
   }
   WiFi.setAutoReconnect(false);
-  // Stop the radio but leave the driver loaded. Deinit drops the shared
-  // radio state, and the Bluetooth controller then refuses to start.
-  if (esp_wifi_stop() == ESP_OK) {
-    g_radio_stopped = true;
-  }
+  // Stop the radio but keep the driver loaded: Wi-Fi setup scans and joins
+  // while Bluetooth is up, and reloading the driver then would not fit in RAM.
+  const esp_err_t stopped = esp_wifi_stop();
+  KMJ_LOG("wifi: esp_wifi_stop -> %d", static_cast<int>(stopped));
+  g_radio_stopped = stopped == ESP_OK;
 }
 
 void net_hold(bool hold) {
@@ -58,6 +70,7 @@ void net_hold(bool hold) {
 }
 
 void net_resume() {
+  KMJ_LOG("wifi: resume (stopped=%d hold=%d)", g_radio_stopped ? 1 : 0, g_hold ? 1 : 0);
   if (g_radio_stopped) {
     esp_wifi_start();
     g_radio_stopped = false;
@@ -92,6 +105,12 @@ void net_connect(const char* ssid, const char* password) {
   snprintf(g_pass, sizeof(g_pass), "%s", password != nullptr ? password : "");
   g_want = true;
   g_hold = false;
+  if (g_radio_stopped) {
+    esp_wifi_start();
+    g_radio_stopped = false;
+  }
+  WiFi.setSleep(false);
+  g_paused = false;
   WiFi.setAutoReconnect(true);
   WiFi.disconnect(false, false);
   WiFi.begin(g_ssid, g_pass);
@@ -147,6 +166,9 @@ void net_advertise(bool on, const char* name, uint16_t port) {
     if (name != nullptr) {
       MDNS.addServiceTxt("kmj", "tcp", "name", name);
     }
+    char identity[65] = {};
+    identity_text(identity);
+    MDNS.addServiceTxt("kmj", "tcp", "id", static_cast<const char*>(identity));
     g_service = true;
   } else if (!on && g_service) {
     MDNS.end();

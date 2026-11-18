@@ -47,6 +47,7 @@ LGFX::LGFX() {
 }
 
 static LGFX g_display;
+static bool g_ready = false;
 
 LGFX& display() { return g_display; }
 
@@ -56,6 +57,28 @@ void display_init() {
   g_display.init();
   g_display.setRotation(1);
   g_display.fillScreen(TFT_BLACK);
+  g_ready = true;
+}
+
+bool display_ready() { return g_ready; }
+
+void display_show_bootloader() {
+  if (!g_ready) {
+    return;
+  }
+  const uint16_t bg = g_display.color565(0x12, 0x14, 0x18);
+  const uint16_t amber = g_display.color565(0xF0, 0xA2, 0x02);
+  const uint16_t text = g_display.color565(0xC9, 0xD2, 0xDC);
+  g_display.startWrite();
+  g_display.fillScreen(bg);
+  g_display.setTextDatum(lgfx::middle_center);
+  g_display.setFont(&lgfx::fonts::DejaVu24);
+  g_display.setTextColor(amber, bg);
+  g_display.drawString("Bootloader mode", g_display.width() / 2, g_display.height() / 2 - 18);
+  g_display.setFont(&lgfx::fonts::DejaVu18);
+  g_display.setTextColor(text, bg);
+  g_display.drawString("Waiting for new firmware...", g_display.width() / 2, g_display.height() / 2 + 18);
+  g_display.endWrite();
 }
 
 }  // namespace kmj

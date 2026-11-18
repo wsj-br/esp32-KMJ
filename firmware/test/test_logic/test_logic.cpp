@@ -261,8 +261,13 @@ void test_jiggler_returns_and_counts() {
   kmj::Jiggler j;
   j.set_random(seq_rand, &cursor);
   j.start(0);
-  TEST_ASSERT_EQUAL_INT(30, j.countdown_bucket_s(0));
-  TEST_ASSERT_TRUE(j.countdown_bucket_s(1000) > 0);
+  TEST_ASSERT_EQUAL_INT(30, j.countdown_s(0));
+  TEST_ASSERT_EQUAL_INT(29, j.countdown_s(1000));
+  TEST_ASSERT_EQUAL_INT(1, j.countdown_s(29500));
+  TEST_ASSERT_EQUAL_INT(-1, j.countdown_s(30000));
+  TEST_ASSERT_EQUAL_UINT32(28800, j.run_left_s(0));
+  TEST_ASSERT_EQUAL_UINT32(28799, j.run_left_s(1000));
+  TEST_ASSERT_EQUAL_UINT32(28795, j.run_left_s(5000));
   int dx = 0;
   int dy = 0;
   int guard = 0;
@@ -295,9 +300,54 @@ void test_jiggler_returns_and_counts() {
 
   j.start(0);
   TEST_ASSERT_TRUE(j.enabled());
-  j.poll(8u * 60u * 60u * 1000u + 5u, dx, dy);
+  TEST_ASSERT_EQUAL_UINT32(28795, j.run_left_s(5000));
+  j.stop(5000);
+  TEST_ASSERT_FALSE(j.enabled());
+  TEST_ASSERT_EQUAL_UINT32(28795, j.run_left_s(5000));
+  TEST_ASSERT_EQUAL_UINT32(28795, j.run_left_s(60000));
+  j.start(60000);
+  TEST_ASSERT_TRUE(j.enabled());
+  TEST_ASSERT_EQUAL_UINT32(28800, j.run_left_s(60000));
+  TEST_ASSERT_EQUAL_UINT32(28799, j.run_left_s(61000));
+  j.poll(60000u + 8u * 60u * 60u * 1000u + 5u, dx, dy);
   TEST_ASSERT_TRUE(j.time_up());
   TEST_ASSERT_FALSE(j.enabled());
+  TEST_ASSERT_EQUAL_UINT32(0, j.run_left_s(60000u + 8u * 60u * 60u * 1000u + 5u));
+
+  struct AxisSeq {
+    int axis = 0;
+    int call = 0;
+  } axis_seq;
+  kmj::Jiggler dir_j;
+  dir_j.set_random(
+      [](void* ctx, long lo, long hi) -> long {
+        auto* s = static_cast<AxisSeq*>(ctx);
+        if (lo == 0 && hi == 4) {
+          return s->axis++;
+        }
+        return lo;
+      },
+      &axis_seq);
+  const int expected_sign[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+  for (int d = 0; d < 4; d++) {
+    dir_j.trigger_jiggle();
+    TEST_ASSERT_TRUE(dir_j.moving());
+    TEST_ASSERT_EQUAL_INT(expected_sign[d][0] * 10, dir_j.leg_dx());
+    TEST_ASSERT_EQUAL_INT(expected_sign[d][1] * 10, dir_j.leg_dy());
+    int sum_x = 0;
+    int sum_y = 0;
+    guard = 0;
+    while (dir_j.moving() && guard++ < 100) {
+      if (dir_j.poll(static_cast<uint32_t>(guard) * 20u, dx, dy)) {
+        sum_x += dx;
+        sum_y += dy;
+        dir_j.ack();
+      }
+    }
+    TEST_ASSERT_FALSE(dir_j.moving());
+    TEST_ASSERT_EQUAL_INT(0, sum_x);
+    TEST_ASSERT_EQUAL_INT(0, sum_y);
+  }
 }
 
 void test_keys_and_mouse_chunks() {
