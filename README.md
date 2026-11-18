@@ -1,5 +1,7 @@
 # KMJ
 
+<img src="brand/mark.svg" alt="KMJ" width="152" height="94">
+
 USB keyboard and mouse for the [LilyGO T-Display-S3 Pro](https://wiki.lilygo.cc/products/t-display-series/t-display-s3-pro/), plus a desktop client that forwards a captured keyboard and pointer over the local network.
 
 The panel is an LVGL instrument UI with three functions:
@@ -14,6 +16,7 @@ The red-circle home key turns the backlight on, returns to the home screen, or t
 
 | Path | What it is |
 | --- | --- |
+| `brand/` | Logo, app icon, and favicon source SVGs. |
 | `firmware/` | PlatformIO firmware. `kmj` is HID only. `kmj-debug` adds USB serial. |
 | `desktop/` | Rust workspace: protocol, capture, client, and the Tauri app. |
 | `proto/PROTOCOL.md` | The byte layout both sides implement. |

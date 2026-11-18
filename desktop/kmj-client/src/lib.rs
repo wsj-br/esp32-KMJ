@@ -289,12 +289,21 @@ impl SecureLink {
         self.send(&msg)
     }
     pub fn poll(&mut self) -> Result<Vec<Vec<u8>>> {
-        read_available(&mut self.stream, &mut self.link)?;
-        flush_out(&mut self.stream, &mut self.link)?;
+        self.service()?;
         Ok(self.link.take_apps())
     }
     fn send(&mut self, msg: &[u8]) -> Result<()> {
         self.link.send_app(msg)?;
+        flush_out(&mut self.stream, &mut self.link)?;
+        Ok(())
+    }
+    fn service(&mut self) -> Result<()> {
+        if !read_available(&mut self.stream, &mut self.link)? {
+            return Err(Error::Msg("device closed the connection".into()));
+        }
+        if !self.link.fail().is_empty() {
+            return Err(Error::Msg(self.link.fail().to_string()));
+        }
         flush_out(&mut self.stream, &mut self.link)?;
         Ok(())
     }
@@ -322,6 +331,9 @@ pub fn start_session(addr: &str, identity: &Identity, name: &str) -> Result<Secu
     if !link.is_secure() {
         return Err(Error::Msg(format!("session failed: {}", link.fail())));
     }
+    // The device drops a quiet session after three seconds. Keep reads short so
+    // the capture loop can poll without waiting on the handshake timeout.
+    stream.set_read_timeout(Some(Duration::from_millis(1)))?;
     Ok(SecureLink { stream, link })
 }
 
@@ -336,7 +348,7 @@ pub fn apply_capture(link: &mut SecureLink, fsm: &mut GrabFsm, event: CaptureEve
             }
         },
         CaptureEvent::Mouse { dx, dy } => {
-            link.send_mouse(dx as i16, dy as i16)?;
+            link.send_mouse(clamp_i16(dx), clamp_i16(dy))?;
             Ok(false)
         }
         CaptureEvent::Buttons { mask } => {
@@ -348,6 +360,10 @@ pub fn apply_capture(link: &mut SecureLink, fsm: &mut GrabFsm, event: CaptureEve
             Ok(false)
         }
     }
+}
+
+fn clamp_i16(value: i32) -> i16 {
+    value.clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
 fn connect(addr: &str) -> Result<TcpStream> {
@@ -364,9 +380,9 @@ fn pump(stream: &mut TcpStream, link: &mut Link, budget: Duration) -> Result<()>
     let start = std::time::Instant::now();
     flush_out(stream, link)?;
     while start.elapsed() < budget {
-        read_available(stream, link)?;
+        let open = read_available(stream, link)?;
         flush_out(stream, link)?;
-        if link.waiting_confirm() || link.is_secure() || link.paired() || !link.fail().is_empty() {
+        if !open || !link.fail().is_empty() || link.waiting_confirm() || link.is_secure() || link.paired() {
             break;
         }
         std::thread::sleep(Duration::from_millis(10));
@@ -382,21 +398,18 @@ fn flush_out(stream: &mut TcpStream, link: &mut Link) -> Result<()> {
     Ok(())
 }
 
-fn read_available(stream: &mut TcpStream, link: &mut Link) -> Result<()> {
+fn read_available(stream: &mut TcpStream, link: &mut Link) -> Result<bool> {
     let mut buf = [0u8; 512];
     loop {
         match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => {
-                let _ = link.feed(&buf[..n]);
-            }
+            Ok(0) => return Ok(false),
+            Ok(n) => link.feed(&buf[..n])?,
             Err(err) if err.kind() == std::io::ErrorKind::WouldBlock || err.kind() == std::io::ErrorKind::TimedOut => {
-                break
+                return Ok(true);
             }
             Err(err) => return Err(err.into()),
         }
     }
-    Ok(())
 }
 
 fn random32() -> [u8; 32] {

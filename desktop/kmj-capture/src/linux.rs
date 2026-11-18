@@ -137,11 +137,16 @@ impl EvdevGrab {
         let mut entries = evdev::enumerate().collect::<Vec<_>>();
         entries.sort_by_key(|(path, _)| path.clone());
         for (_path, mut device) in entries {
+            if is_board_hid(&device) {
+                continue;
+            }
             let keys = device.supported_keys().map(|k| k.contains(evdev::Key::KEY_A)).unwrap_or(false);
             let rel = device.supported_relative_axes().map(|a| a.contains(RelativeAxisType::REL_X)).unwrap_or(false);
-            if keys || rel {
-                if device.grab().is_ok() {
+            if (keys || rel) && device.grab().is_ok() {
+                if set_nonblocking(&device).is_ok() {
                     devices.push(device);
+                } else {
+                    let _ = device.ungrab();
                 }
             }
         }
@@ -169,13 +174,6 @@ impl InputCapture for EvdevGrab {
     fn poll(&mut self) -> Vec<CaptureEvent> {
         let mut out = Vec::new();
         for device in &mut self.devices {
-            unsafe {
-                let fd = device.as_raw_fd();
-                let flags = libc::fcntl(fd, libc::F_GETFL);
-                if flags >= 0 {
-                    libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
-                }
-            }
             loop {
                 match device.fetch_events() {
                     Ok(events) => {
@@ -190,6 +188,24 @@ impl InputCapture for EvdevGrab {
         let _ = Duration::from_millis(0);
         out
     }
+}
+
+fn is_board_hid(device: &Device) -> bool {
+    // The board is plugged into this computer. Grabbing its own HID interfaces
+    // feeds every injected report back into the session.
+    device.name().is_some_and(|name| {
+        let name = name.to_ascii_lowercase();
+        name.contains("lilygo") || name.contains("kmj")
+    })
+}
+
+fn set_nonblocking(device: &Device) -> io::Result<()> {
+    let fd = device.as_raw_fd();
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 fn push_evdev(ev: evdev::InputEvent, buttons: &mut u8, out: &mut Vec<CaptureEvent>) {

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=KMJ
+Comment=USB keyboard and mouse capture client
+Exec=kmj-app
+Icon=com.kmj.desktop
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+StartupWMClass=com.kmj.desktop

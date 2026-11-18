@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KMJ</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
   <style>
     :root {
       --bg: #101318;
@@ -46,6 +48,18 @@
       text-transform: uppercase;
       font-size: 12px;
       color: var(--dim);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand img {
+      display: block;
+      width: 46px;
+      height: auto;
     }
 
     header strong {
@@ -433,7 +447,10 @@
 </head>
 <body>
   <header>
-    <strong>KMJ</strong>
+    <div class="brand">
+      <img src="logo.svg" alt="" width="46" height="28">
+      <strong>KMJ</strong>
+    </div>
     <span class="phase-label" id="phase">released</span>
   </header>
   <main>
@@ -620,6 +637,7 @@
       $("title").textContent = status.phase === "capturing" ? "Capturing" : "Released";
       $("hotkey").value = status.hotkey;
       $("overlay").classList.toggle("on", status.phase === "capturing");
+      if (status.notice) $("note").textContent = status.notice;
     }
 
     $("scan").onclick = scanDevices;
