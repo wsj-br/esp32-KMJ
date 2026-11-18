@@ -7,12 +7,12 @@ license.workspace = true
 [dependencies]
 
 [target.'cfg(target_os = "linux")'.dependencies]
-evdev = "0.12"
+evdev = "0.13"
 libc = "0.2"
-x11rb = "0.13"
+x11rb = "0.14"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = [
+windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_UI_WindowsAndMessaging",
   "Win32_UI_Input",

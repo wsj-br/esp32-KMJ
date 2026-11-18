@@ -1,4 +1,4 @@
-//! KMJ handshake and transport. Byte layout is `proto/PROTOCOL.md`.
+//! KMJ handshake and transport. Byte layout is `dev/proto/PROTOCOL.md`.
 
 use blake2::digest::consts::U32;
 use blake2::digest::Digest;
@@ -70,10 +70,7 @@ pub fn nonce_from_counter(counter: u64) -> [u8; 24] {
 pub fn aead_seal(key: &[u8; 32], nonce: &[u8; 24], plain: &[u8]) -> Result<(Vec<u8>, [u8; 16])> {
     let cipher = XChaCha20Poly1305::new(key.into());
     let out = cipher
-        .encrypt(
-            XNonce::from_slice(nonce),
-            Payload { msg: plain, aad: b"" },
-        )
+        .encrypt(xnonce(nonce), Payload { msg: plain, aad: b"" })
         .map_err(|_| Error::Decrypt)?;
     let (body, tag) = out.split_at(out.len() - 16);
     let mut mac = [0u8; 16];
@@ -86,8 +83,12 @@ pub fn aead_open(key: &[u8; 32], nonce: &[u8; 24], cipher: &[u8], mac: &[u8; 16]
     let mut joined = Vec::with_capacity(cipher.len() + 16);
     joined.extend_from_slice(cipher);
     joined.extend_from_slice(mac);
-    aead.decrypt(XNonce::from_slice(nonce), Payload { msg: &joined, aad: b"" })
+    aead.decrypt(xnonce(nonce), Payload { msg: &joined, aad: b"" })
         .map_err(|_| Error::Decrypt)
+}
+
+fn xnonce(nonce: &[u8; 24]) -> &XNonce {
+    <&XNonce>::try_from(nonce.as_slice()).expect("XChaCha20 nonce is 24 bytes")
 }
 
 #[derive(Clone)]

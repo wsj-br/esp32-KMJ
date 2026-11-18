@@ -2,57 +2,40 @@
 
 <img src="brand/mark.svg" alt="KMJ" width="152" height="94">
 
-USB keyboard and mouse for the [LilyGO T-Display-S3 Pro](https://wiki.lilygo.cc/products/t-display-series/t-display-s3-pro/), plus a desktop client that forwards a captured keyboard and pointer over the local network.
+KMJ turns a [LilyGO T-Display-S3 Pro](https://wiki.lilygo.cc/products/t-display-series/t-display-s3-pro/) into a network-controlled USB keyboard and mouse.
 
-The panel is an LVGL instrument UI with three functions:
+Run the KMJ desktop app on the **source** computer and plug the board into the **target** computer. The app captures input on the source, sends it over the local network, and the board presents it to the target as a standard USB keyboard and mouse. KMJ carries input only; it does not provide video or remote access over the internet.
 
-- **KM Emulator** listens for an encrypted TCP session, pairs a desktop, and injects HID reports into the computer the board is plugged into.
-- **Mouse Jiggler** is the eased out-and-back motion from `esp32-Mouse-Jiggler`, with the same nudge.
-- **Configuration** joins Wi-Fi and shows link, power, and system status.
+## Requirements
 
-The red-circle home key turns the backlight on, returns to the home screen, or turns the backlight off. A long press turns the backlight off and leaves the current function running.
+- A LilyGO T-Display-S3 Pro running the KMJ firmware.
+- A source computer running the desktop app. Linux capture is complete; see the [platform status](dev/DEVEL.md#capture) for Windows and macOS.
+- A target computer with USB HID support.
+- A local network that lets the source reach the board. The board uses 2.4 GHz Wi-Fi.
 
-## Layout
+## Quick start
 
-| Path | What it is |
-| --- | --- |
-| `brand/` | Logo, app icon, and favicon source SVGs. |
-| `firmware/` | PlatformIO firmware. `kmj` is HID only. `kmj-debug` adds USB serial. |
-| `desktop/` | Rust workspace: protocol, capture, client, and the Tauri app. |
-| `proto/PROTOCOL.md` | The byte layout both sides implement. |
+1. [Build and flash the firmware](dev/DEVEL.md#firmware), then connect the board's USB port to the target computer.
+2. [Build and run the desktop app](dev/DEVEL.md#desktop-client) on the source computer.
+3. On the board, open **Configuration** → **Wi-Fi setup** → **Allow**. In the app, select **Find device**, choose the board, enter the Wi-Fi credentials, and send them. Bluetooth turns off after setup.
+4. Open **KM Emulator** on the board and select **Pair**. Start pairing in the app, verify that both six-digit codes match, then confirm on the board.
+5. Connect in the app and select **Capture**. Press **Ctrl+Alt+Esc** to release the source keyboard and pointer. This default release chord is handled locally and is never sent to the target; it can be changed in the app.
 
-## Firmware
+Pairing stores each side's identity key, so it normally needs to be completed only once. Session traffic is encrypted. The board can remember up to four paired source computers.
 
-From the repository root, or with `pio` directly inside `firmware/`:
+## Device functions
 
-```bash
-./scripts/flash-firmware.sh kmj        # HID-only build (hold BOOT, tap RESET, release BOOT)
-./scripts/flash-firmware.sh kmj-debug  # HID + serial; auto-reboots into the bootloader
-```
+- **KM Emulator** accepts an encrypted session from a paired desktop and injects its input into the USB target.
+- **Mouse Jiggler** generates eased pointer movement, a manual nudge, and an eight-hour unattended limit.
+- **Configuration** manages Wi-Fi, USB output, display settings, and system status.
 
-`kmj` has no serial port while it is running. Hold **BOOT**, tap **RESET**, release **BOOT**, then upload. `kmj-debug` keeps a CDC port at 115200 so `scripts/flash-firmware.sh kmj-debug` (via `firmware/tools/bootloader.py`) can reboot the board into download mode automatically without button presses. Disconnecting USB also drops that port.
+The red-circle home key wakes the display, returns to the home screen, or turns the backlight off. A long press turns off the backlight without stopping the active function.
 
-Host tests, which do not need the board:
+## Host permissions
 
-```bash
-pio test -e native -d firmware
-```
+- **Linux/Wayland:** capture requires read/write access to `/dev/input/event*`. See the [Linux instructions](dev/DEVEL.md#linux).
+- **Windows:** no additional capture permission is normally required, but the backend still needs release validation.
+- **macOS:** the capture backend is incomplete; it will require Accessibility and Input Monitoring permission.
+- **Linux/X11:** no additional capture permission is normally required.
 
-Pins, USB-OTG, and the reason the non-Pro variant macros must not be used are in `.cursor/rules/t-display-s3.mdc`.
-
-Wi-Fi setup starts on the device: Configuration, **Wi-Fi setup**, then **Allow**. In the desktop app, choose the device, enter the network, and send it. Bluetooth turns off once the board has joined, so it does not stay up during a KM session. Pairing is armed from KM Emulator. The device and desktop each show a six-digit code. Confirming the match on the device completes pairing automatically in the desktop app. The protocol is in `proto/PROTOCOL.md`.
-
-## Desktop
-
-Rust 1.80 or newer. On Linux, X11 uses a pointer and keyboard grab. A Wayland session uses an evdev grab, which needs permission to open `/dev/input` (the `input` group or a udev rule). macOS needs Accessibility and Input Monitoring. Details are in `docs/desktop.md`.
-
-```bash
-cargo test --manifest-path desktop/Cargo.toml --workspace --exclude kmj-app
-cargo build --manifest-path desktop/Cargo.toml -p kmj-app
-```
-
-The window lists discovered `_kmj._tcp` devices, pairs, connects, and captures. The default release chord is Ctrl+Alt+Esc. That chord is never forwarded. The client then sends `RELEASE_ALL` and drops the local grab.
-
-## Hardware checks
-
-`docs/hardware-test.md` is the enumeration, stuck-key, latency, and soak procedure. Those checks need the board and a host of each OS. They are not run by CI.
+Build instructions, platform details, hardware checks, and release steps are in the [development guide](dev/DEVEL.md). The wire format is documented in the [protocol reference](dev/proto/PROTOCOL.md).

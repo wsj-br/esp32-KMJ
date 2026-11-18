@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use evdev::{Device, InputEventKind, RelativeAxisType};
+use evdev::{Device, EventSummary, KeyCode, RelativeAxisCode};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{ConnectionExt, EventMask, GrabMode, KeyButMask};
 use x11rb::protocol::Event;
@@ -142,8 +142,11 @@ impl EvdevGrab {
             if is_board_hid(&device) {
                 continue;
             }
-            let keys = device.supported_keys().map(|k| k.contains(evdev::Key::KEY_A)).unwrap_or(false);
-            let rel = device.supported_relative_axes().map(|a| a.contains(RelativeAxisType::REL_X)).unwrap_or(false);
+            let keys = device.supported_keys().map(|k| k.contains(KeyCode::KEY_A)).unwrap_or(false);
+            let rel = device
+                .supported_relative_axes()
+                .map(|a| a.contains(RelativeAxisCode::REL_X))
+                .unwrap_or(false);
             if (keys || rel) && device.grab().is_ok() {
                 if set_nonblocking(&device).is_ok() {
                     devices.push(device);
@@ -208,12 +211,12 @@ pub fn spawn_chord_watch(stop: Arc<AtomicBool>, emit: impl Fn(u8, bool) + Send +
                             Ok(events) => {
                                 idle = false;
                                 for ev in events {
-                                    if let InputEventKind::Key(code) = ev.kind() {
-                                        if ev.value() == 2 {
+                                    if let EventSummary::Key(_, code, value) = ev.destructure() {
+                                        if value == 2 {
                                             continue;
                                         }
                                         if let Some(usage) = linux_key_to_hid(code.code()) {
-                                            emit(usage, ev.value() != 0);
+                                            emit(usage, value != 0);
                                         }
                                     }
                                 }
@@ -245,14 +248,14 @@ fn open_chord_keyboards() -> io::Result<Vec<Device>> {
         }
         let keys = device
             .supported_keys()
-            .map(|keys| keys.contains(evdev::Key::KEY_ESC) || keys.contains(evdev::Key::KEY_A))
+            .map(|keys| keys.contains(KeyCode::KEY_ESC) || keys.contains(KeyCode::KEY_A))
             .unwrap_or(false);
         if !keys || set_nonblocking(&device).is_err() {
             continue;
         }
         let pointer = device
             .supported_relative_axes()
-            .map(|axes| axes.contains(RelativeAxisType::REL_X))
+            .map(|axes| axes.contains(RelativeAxisCode::REL_X))
             .unwrap_or(false);
         if !pointer && device.grab().is_ok() {
             grabbed.push(device);
@@ -291,16 +294,16 @@ fn set_nonblocking(device: &Device) -> io::Result<()> {
 }
 
 fn push_evdev(ev: evdev::InputEvent, buttons: &mut u8, out: &mut Vec<CaptureEvent>) {
-    match ev.kind() {
-        InputEventKind::Key(code) => {
-            let down = ev.value() != 0;
+    match ev.destructure() {
+        EventSummary::Key(_, code, value) => {
+            let down = value != 0;
             if let Some(usage) = linux_key_to_hid(code.code()) {
                 out.push(CaptureEvent::Key { usage, down });
             }
-            let bit = match code.code() {
-                0x110 => 0x01, // BTN_LEFT
-                0x111 => 0x02,
-                0x112 => 0x04,
+            let bit = match code {
+                KeyCode::BTN_LEFT => 0x01,
+                KeyCode::BTN_RIGHT => 0x02,
+                KeyCode::BTN_MIDDLE => 0x04,
                 _ => 0,
             };
             if bit != 0 {
@@ -308,11 +311,11 @@ fn push_evdev(ev: evdev::InputEvent, buttons: &mut u8, out: &mut Vec<CaptureEven
                 out.push(CaptureEvent::Buttons { mask: *buttons });
             }
         }
-        InputEventKind::RelAxis(axis) => match axis {
-            RelativeAxisType::REL_X => out.push(CaptureEvent::Mouse { dx: ev.value(), dy: 0 }),
-            RelativeAxisType::REL_Y => out.push(CaptureEvent::Mouse { dx: 0, dy: ev.value() }),
-            RelativeAxisType::REL_WHEEL => out.push(CaptureEvent::Wheel { v: ev.value() as i8, h: 0 }),
-            RelativeAxisType::REL_HWHEEL => out.push(CaptureEvent::Wheel { v: 0, h: ev.value() as i8 }),
+        EventSummary::RelativeAxis(_, axis, value) => match axis {
+            RelativeAxisCode::REL_X => out.push(CaptureEvent::Mouse { dx: value, dy: 0 }),
+            RelativeAxisCode::REL_Y => out.push(CaptureEvent::Mouse { dx: 0, dy: value }),
+            RelativeAxisCode::REL_WHEEL => out.push(CaptureEvent::Wheel { v: value as i8, h: 0 }),
+            RelativeAxisCode::REL_HWHEEL => out.push(CaptureEvent::Wheel { v: 0, h: value as i8 }),
             _ => {}
         },
         _ => {}

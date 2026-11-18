@@ -1,7 +1,7 @@
 #include "hal/touch_cst.hpp"
 
 #include <Arduino.h>
-#include <TouchDrvCSTXXX.hpp>
+#include <TouchDrvCST.hpp>
 #include <Wire.h>
 
 #include "hal/i2c_lock.hpp"
@@ -53,7 +53,13 @@ TouchSample touch_read() {
   int16_t x = -1;
   int16_t y = -1;
   i2c_lock();
-  sample.down = g_touch.getPoint(&x, &y, 1) > 0;
+  const TouchPoints& points = g_touch.getTouchPoints();
+  sample.down = points.hasPoints();
+  if (sample.down) {
+    const TouchPoint& point = points.getPoint(0);
+    x = static_cast<int16_t>(point.x);
+    y = static_cast<int16_t>(point.y);
+  }
   sample.home = g_home;
   i2c_unlock();
   sample.x = x;

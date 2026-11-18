@@ -4,7 +4,7 @@
 
 namespace kmj {
 
-// See proto/PROTOCOL.md. These helpers are the bytes both sides must match.
+// See dev/proto/PROTOCOL.md. These helpers are the bytes both sides must match.
 
 struct PairTranscript {
   uint8_t client_static[32];

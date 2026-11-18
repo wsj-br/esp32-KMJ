@@ -1,0 +1,60 @@
+Command: cmake -G Ninja -B /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/build -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/mnt/code-server/esp-idf-tools/python_env/idf6.2_py3.12_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=False -DCONFIGDEP_ENABLE=True /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub
+CMake Warning (deprecated) at CMakeLists.txt:3 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/bt/host/bluedroid/Kconfig.in:75: Choice symbol BT_ENC_KEY_SIZE_CTRL_STD (member of BT_ENC_KEY_SIZE_CTRL_ENABLED choice) is defined with a warning, which has no effect for choice symbols.
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/bt/host/bluedroid/Kconfig.in:81: Choice symbol BT_ENC_KEY_SIZE_CTRL_VSC (member of BT_ENC_KEY_SIZE_CTRL_ENABLED choice) is defined with a warning, which has no effect for choice symbols.
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/bt/host/bluedroid/Kconfig.in:88: Choice symbol BT_ENC_KEY_SIZE_CTRL_NONE (member of BT_ENC_KEY_SIZE_CTRL_ENABLED choice) is defined with a warning, which has no effect for choice symbols.
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:285: CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE was replaced with CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:297: CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_NONE was replaced with CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_DEBUG
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:545: CONFIG_ADC_DISABLE_DAC was replaced with CONFIG_ADC_DISABLE_DAC_OUTPUT
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:552: CONFIG_ADC_CAL_EFUSE_TP_ENABLE was replaced with CONFIG_ADC_CALI_EFUSE_TP_ENABLE
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:553: CONFIG_ADC_CAL_EFUSE_VREF_ENABLE was replaced with CONFIG_ADC_CALI_EFUSE_VREF_ENABLE
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:554: CONFIG_ADC_CAL_LUT_ENABLE was replaced with CONFIG_ADC_CALI_LUT_ENABLE
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:1227: CONFIG_ESP_WIFI_NAN_ENABLE was replaced with CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:1693: CONFIG_MBEDTLS_ATCA_HW_ECDSA_SIGN was replaced with CONFIG_MBEDTLS_SECURE_ELEMENT_DRIVER_ENABLED
+NOTE: /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig:1694: CONFIG_MBEDTLS_ATCA_HW_ECDSA_VERIFY was replaced with CONFIG_MBEDTLS_SECURE_ELEMENT_DRIVER_ENABLED
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/bootloader/Kconfig.app_rollback:17: Trying to set symbol BOOTLOADER_APP_ROLLBACK_CONFIRM_ON_STARTUP to n, but it is currently selected by choice BOOTLOADER_APP_ROLLBACK_CONFIRM_MODE. For setting it to n, set another choice symbol to y instead.
+NOTE: Kconfig parser version: 1
+NOTE: Kconfig defaults policy: use sdkconfig
+NOTE: Status: Finished with notifications
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_adc/Kconfig:22: ADC_CALI_EFUSE_TP_ENABLE assigned multiple times: y (user-set), y (user-set) -> using y
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_adc/Kconfig:30: ADC_CALI_EFUSE_VREF_ENABLE assigned multiple times: y (user-set), y (user-set) -> using y
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_adc/Kconfig:38: ADC_CALI_LUT_ENABLE assigned multiple times: y (user-set), y (user-set) -> using y
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_adc/Kconfig:47: ADC_DISABLE_DAC_OUTPUT assigned multiple times: y (user-set), y (user-set) -> using y
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/mbedtls/Kconfig:1585: MBEDTLS_SECURE_ELEMENT_DRIVER_ENABLED assigned multiple times: n (user-set), n (user-set) -> using n
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/partition_table/Kconfig.projbuild:129: PARTITION_TABLE_CUSTOM_FILENAME has user-set value partitions.csv from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_https_server/Kconfig:18: ESP_HTTPS_SERVER_EVENT_POST_TIMEOUT has user-set value 2000 from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_hw_support/Kconfig:416: ESP_INTR_IN_IRAM has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_libc/Kconfig:46: LIBC_MISC_IN_IRAM has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_rom/Kconfig:3: ESP_ROM_PRINT_IN_IRAM has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_stdio/Kconfig:150: ESP_CONSOLE_UART_BAUDRATE has user-set value 115200 from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_system/Kconfig:12: ESP_SYSTEM_IN_IRAM has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_timer/Kconfig:3: ESP_TIMER_IN_IRAM has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/app_trace/Kconfig.apptrace:109: APPTRACE_LOCK_ENABLE has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/log/Kconfig:79: LOG_IN_IRAM has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/spi_flash/Kconfig:99: SPI_FLASH_PLACE_FUNCTIONS_IN_IRAM has user-set value y from /mnt/code-server/external/espressif/power/SensorLib/examples/platform/esp_idf_sensor_hub/sdkconfig but is not visible (disabled dependency)
+NOTE: /mnt/code-server/external/espressif/esp-idf-v6.0/components/app_trace/Kconfig.apptrace:3: APPTRACE_DESTINATION has all choice symbols disabled in sdkconfig; the choice is not visible. Source: (unknown)
+CMake Error at /mnt/code-server/external/espressif/esp-idf-v6.0/tools/cmake/tool_version_check.cmake:36 (message):
+
+
+  Tool doesn't match supported version from list ['esp-16.1.0_20260609']:
+  /mnt/code-server/esp-idf-tools/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc
+
+  Please try to run 'idf.py fullclean' to solve it.
+
+Call Stack (most recent call first):
+  /mnt/code-server/external/espressif/esp-idf-v6.0/components/esp_common/project_include.cmake:8 (check_expected_tool_version)
+  /mnt/code-server/external/espressif/esp-idf-v6.0/tools/cmake/build.cmake:531 (include)
+  /mnt/code-server/external/espressif/esp-idf-v6.0/tools/cmake/build.cmake:831 (__build_process_project_includes)
+  /mnt/code-server/external/espressif/esp-idf-v6.0/tools/cmake/project.cmake:904 (idf_build_process)
+  CMakeLists.txt:9 (project)
+
+
