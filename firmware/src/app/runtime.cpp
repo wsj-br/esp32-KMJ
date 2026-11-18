@@ -86,7 +86,6 @@ void leave_functions(bool stop_listener) {
     km_arm(false);
     km_stop();
     g_live.pair_armed = false;
-    net_advertise(false, g_live.device_name, kKmPort);
   }
 }
 
@@ -170,7 +169,6 @@ void apply(const CmdMsg& msg) {
       g_live.pair_armed = false;
       if (g_live.mode != Mode::Km) {
         km_stop();
-        net_advertise(false, settings().device_name, kKmPort);
       }
       break;
     case Cmd::RemovePeer:
@@ -283,8 +281,10 @@ void io_task(void*) {
     net_poll();
     if (g_live.mode == Mode::Km || g_live.pair_armed) {
       km_poll(now);
-      net_advertise(true, settings().device_name, kKmPort);
     }
+    // Stay visible on Wi-Fi in every function. The listener, and therefore
+    // capture, exists only while KM Emulator is the active function.
+    net_advertise(net_connected(), settings().device_name, kKmPort);
     if (g_live.mode == Mode::Jiggler) {
       int dx = 0;
       int dy = 0;

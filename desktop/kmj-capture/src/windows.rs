@@ -90,14 +90,50 @@ fn hid_from_vk(vk: u32) -> Option<u8> {
         0x09 => 0x2B,
         0x0D => 0x28,
         0x20 => 0x2C,
+        0x13 => 0x48, // pause
+        0x14 => 0x39, // caps lock
+        0x21 => 0x4B, // page up
+        0x22 => 0x4E, // page down
+        0x23 => 0x4D, // end
+        0x24 => 0x4A, // home
         0x25 => 0x50,
         0x26 => 0x52,
         0x27 => 0x4F,
         0x28 => 0x51,
+        0x2C => 0x46, // print screen
+        0x2D => 0x49, // insert
+        0x2E => 0x4C, // delete
+        0x5C => 0xE7, // right meta
+        0x5D => 0x65, // menu
+        0x60 => 0x62, // numpad 0
+        0x6A => 0x55, // numpad *
+        0x6B => 0x57, // numpad +
+        0x6D => 0x56, // numpad -
+        0x6E => 0x63, // numpad .
+        0x6F => 0x54, // numpad /
+        0x90 => 0x53, // num lock
+        0x91 => 0x47, // scroll lock
+        0xAD => 0x7F, // mute
+        0xAE => 0x81, // volume down
+        0xAF => 0x80, // volume up
+        0xBA => 0x33, // ;
+        0xBB => 0x2E, // =
+        0xBC => 0x36, // ,
+        0xBD => 0x2D, // -
+        0xBE => 0x37, // .
+        0xBF => 0x38, // /
+        0xC0 => 0x35, // `
+        0xDB => 0x2F, // [
+        0xDC => 0x31, // \
+        0xDD => 0x30, // ]
+        0xDE => 0x34, // '
         code if (0x30..=0x39).contains(&code) => {
             if code == 0x30 { 0x27 } else { 0x1E + (code as u8 - 0x31) }
         }
         code if (0x41..=0x5A).contains(&code) => 0x04 + (code as u8 - 0x41),
+        code if (0x61..=0x69).contains(&code) => 0x59 + (code as u8 - 0x61), // numpad 1-9
+        code if (0x70..=0x7B).contains(&code) => 0x3A + (code as u8 - 0x70), // F1-F12
+        code if (0x7C..=0x87).contains(&code) => 0x68 + (code as u8 - 0x7C), // F13-F24
         _ => return None,
     })
 }
@@ -138,7 +174,12 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: usize, lparam: isize)
     if code >= 0 {
         let info = &*(lparam as *const KbDll);
         let down = wparam == 0x100 || wparam == 0x104;
-        if let Some(usage) = hid_from_vk(info.vk) {
+        let usage = if info.vk == 0x0D && (info.flags & 1) != 0 {
+            Some(0x58) // keypad enter
+        } else {
+            hid_from_vk(info.vk)
+        };
+        if let Some(usage) = usage {
             push_event(CaptureEvent::Key { usage, down });
         }
         return 1;

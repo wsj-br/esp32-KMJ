@@ -24,6 +24,7 @@ struct Server {
   uint32_t latency_ms = 0;
   uint32_t last_rx = 0;
   uint32_t last_active = 0;
+  uint32_t last_key_ms = 0;
   char last_key[8] = {};
   char note[40] = {};
   bool secure = false;
@@ -114,6 +115,7 @@ void handle_app(void*, const uint8_t* msg, size_t n) {
         hid_key(msg[1], msg[2] != 0);
         g.keys++;
         usage_name(msg[1], g.last_key, sizeof(g.last_key));
+        g.last_key_ms = g.last_rx;
         g.last_active = g.last_rx;
       }
       break;
@@ -171,6 +173,8 @@ void drop_client() {
   g.secure = false;
   g.keys = 0;
   g.moves = 0;
+  g.last_key[0] = '\0';
+  g.last_key_ms = 0;
   LinkEvents ev{note_paired, on_secure, handle_app, note_fail, nullptr};
   g.link.reset(Role::Device, settings().identity, fill_rng, nullptr, ev);
   g.link.set_local_name(settings().device_name);
@@ -218,8 +222,12 @@ void km_set_inject(bool enabled) {
   }
 }
 
+constexpr uint32_t kKeyHintMs = 2000;
+
 void reset_link() {
   g.secure = false;
+  g.last_key[0] = '\0';
+  g.last_key_ms = 0;
   LinkEvents ev{note_paired, on_secure, handle_app, note_fail, nullptr};
   g.link.reset(Role::Device, settings().identity, fill_rng, nullptr, ev);
   g.link.set_local_name(settings().device_name);
@@ -238,6 +246,17 @@ void flush_out() {
       g.client.write(out, n);
     }
   }
+}
+
+// last_rx is taken with millis() while handling a frame, which is after km_poll's
+// now_ms sample. An unsigned subtraction then wraps and looks like the link has
+// been idle for weeks, so a session that just came up is closed immediately.
+bool link_idle(uint32_t now_ms, uint32_t last_rx) {
+  if (last_rx == 0) {
+    return false;
+  }
+  const int32_t idle = static_cast<int32_t>(now_ms - last_rx);
+  return idle > static_cast<int32_t>(kLinkTimeoutMs);
 }
 
 void km_poll(uint32_t now_ms) {
@@ -275,7 +294,7 @@ void km_poll(uint32_t now_ms) {
       snprintf(why, sizeof(why), "%s", g.link.fail());
       reset_link();
       snprintf(g.note, sizeof(g.note), "%s", why);
-    } else if (g.secure && g.last_rx != 0 && now_ms - g.last_rx > kLinkTimeoutMs) {
+    } else if (g.secure && link_idle(now_ms, g.last_rx)) {
       g.client.stop();
       hid_release_all();
       reset_link();
@@ -303,7 +322,9 @@ KmView km_view() {
   view.keys = g.keys;
   view.moves = g.moves;
   view.latency_ms = g.latency_ms;
-  snprintf(view.last_key, sizeof(view.last_key), "%s", g.last_key);
+  if (g.last_key_ms != 0 && millis() - g.last_key_ms <= kKeyHintMs) {
+    snprintf(view.last_key, sizeof(view.last_key), "%s", g.last_key);
+  }
   view.active = g.secure && g.last_active != 0 && millis() - g.last_active < 500;
   snprintf(view.note, sizeof(view.note), "%s", g.note);
   return view;

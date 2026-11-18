@@ -1,5 +1,7 @@
 use std::io::{self, ErrorKind};
 use std::os::fd::AsRawFd;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use evdev::{Device, InputEventKind, RelativeAxisType};
@@ -188,6 +190,86 @@ impl InputCapture for EvdevGrab {
         let _ = Duration::from_millis(0);
         out
     }
+}
+
+/// Read keyboard keys until `stop` is set. Keyboard-only devices are grabbed so a
+/// compositor shortcut such as GNOME's Ctrl+Alt+Escape (cycle panels) cannot swallow
+/// the key before it is recorded. The pointer is left alone.
+pub fn spawn_chord_watch(stop: Arc<AtomicBool>, emit: impl Fn(u8, bool) + Send + 'static) -> io::Result<()> {
+    let mut devices = open_chord_keyboards()?;
+    std::thread::Builder::new()
+        .name("kmj-chord".into())
+        .spawn(move || {
+            while !stop.load(Ordering::SeqCst) {
+                let mut idle = true;
+                for device in &mut devices {
+                    loop {
+                        match device.fetch_events() {
+                            Ok(events) => {
+                                idle = false;
+                                for ev in events {
+                                    if let InputEventKind::Key(code) = ev.kind() {
+                                        if ev.value() == 2 {
+                                            continue;
+                                        }
+                                        if let Some(usage) = linux_key_to_hid(code.code()) {
+                                            emit(usage, ev.value() != 0);
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                }
+                if idle {
+                    std::thread::sleep(Duration::from_millis(4));
+                }
+            }
+            for device in &mut devices {
+                let _ = device.ungrab();
+            }
+        })
+        .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
+    Ok(())
+}
+
+fn open_chord_keyboards() -> io::Result<Vec<Device>> {
+    let mut entries = evdev::enumerate().collect::<Vec<_>>();
+    entries.sort_by_key(|(path, _)| path.clone());
+    let mut grabbed = Vec::new();
+    let mut readable = Vec::new();
+    for (_path, mut device) in entries {
+        if is_board_hid(&device) {
+            continue;
+        }
+        let keys = device
+            .supported_keys()
+            .map(|keys| keys.contains(evdev::Key::KEY_ESC) || keys.contains(evdev::Key::KEY_A))
+            .unwrap_or(false);
+        if !keys || set_nonblocking(&device).is_err() {
+            continue;
+        }
+        let pointer = device
+            .supported_relative_axes()
+            .map(|axes| axes.contains(RelativeAxisType::REL_X))
+            .unwrap_or(false);
+        if !pointer && device.grab().is_ok() {
+            grabbed.push(device);
+        } else {
+            readable.push(device);
+        }
+    }
+    if !grabbed.is_empty() {
+        return Ok(grabbed);
+    }
+    if readable.is_empty() {
+        return Err(io::Error::new(
+            ErrorKind::PermissionDenied,
+            "no keyboard could be read; add the user to the input group",
+        ));
+    }
+    Ok(readable)
 }
 
 fn is_board_hid(device: &Device) -> bool {

@@ -14,8 +14,8 @@
     "windows": [
       {
         "title": "KMJ",
-        "width": 980,
-        "height": 680,
+        "width": 950,
+        "height": 700,
         "resizable": true,
         "visible": false
       }

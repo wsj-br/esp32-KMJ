@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="system">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,6 +8,7 @@
   <link rel="icon" href="favicon.ico" sizes="any">
   <style>
     :root {
+      color-scheme: dark;
       --bg: #101318;
       --panel: #191f27;
       --panel-raised: #202833;
@@ -20,6 +21,61 @@
       --amber: #f0a202;
       --amber-dark: #3a2a12;
       --red: #e16b68;
+      --aside: rgba(16, 19, 24, 0.72);
+      --card: rgba(16, 19, 24, 0.42);
+      --scrim: rgba(7, 9, 12, 0.78);
+      --overlay: rgba(16, 19, 24, 0.94);
+      --glow: rgba(66, 223, 196, 0.045);
+      --stage-glow: rgba(66, 223, 196, 0.055);
+      --pair-glow: rgba(66, 223, 196, 0.09);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f3f0e8;
+      --panel: #fffcf6;
+      --panel-raised: #f6f1e6;
+      --line: #ddd6c8;
+      --line-bright: #c4baa8;
+      --text: #1d1a16;
+      --dim: #6b645b;
+      --cyan: #0b7568;
+      --cyan-dark: #d8f3ee;
+      --amber: #8a5b00;
+      --amber-dark: #f8e6c2;
+      --red: #a33b38;
+      --aside: rgba(255, 252, 246, 0.9);
+      --card: rgba(255, 252, 246, 0.72);
+      --scrim: rgba(29, 26, 22, 0.46);
+      --overlay: rgba(255, 252, 246, 0.94);
+      --glow: rgba(11, 117, 104, 0.08);
+      --stage-glow: rgba(11, 117, 104, 0.08);
+      --pair-glow: rgba(11, 117, 104, 0.12);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root[data-theme="system"] {
+        color-scheme: light;
+        --bg: #f3f0e8;
+        --panel: #fffcf6;
+        --panel-raised: #f6f1e6;
+        --line: #ddd6c8;
+        --line-bright: #c4baa8;
+        --text: #1d1a16;
+        --dim: #6b645b;
+        --cyan: #0b7568;
+        --cyan-dark: #d8f3ee;
+        --amber: #8a5b00;
+        --amber-dark: #f8e6c2;
+        --red: #a33b38;
+        --aside: rgba(255, 252, 246, 0.9);
+        --card: rgba(255, 252, 246, 0.72);
+        --scrim: rgba(29, 26, 22, 0.46);
+        --overlay: rgba(255, 252, 246, 0.94);
+        --glow: rgba(11, 117, 104, 0.08);
+        --stage-glow: rgba(11, 117, 104, 0.08);
+        --pair-glow: rgba(11, 117, 104, 0.12);
+      }
     }
 
     * { box-sizing: border-box; }
@@ -35,7 +91,7 @@
       font-family: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
       display: grid;
       grid-template-rows: 56px 1fr;
-      background-image: radial-gradient(circle at 76% 12%, rgba(66, 223, 196, 0.045), transparent 30%);
+      background-image: radial-gradient(circle at 76% 12%, var(--glow), transparent 30%);
     }
 
     header {
@@ -95,7 +151,7 @@
       flex-direction: column;
       border-right: 1px solid var(--line);
       padding: 18px;
-      background: rgba(16, 19, 24, 0.72);
+      background: var(--aside);
     }
 
     section {
@@ -229,8 +285,15 @@
     }
 
     .badge.paired {
-      border-color: rgba(66, 223, 196, 0.6);
+      border-color: color-mix(in srgb, var(--cyan) 60%, transparent);
       color: var(--cyan);
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: auto;
     }
 
     .wifi-nav {
@@ -238,7 +301,7 @@
       width: 100%;
       align-items: center;
       gap: 11px;
-      margin-top: auto;
+      margin-top: 0;
       text-align: left;
     }
 
@@ -266,15 +329,39 @@
     }
 
     .stage {
+      position: relative;
       min-height: 300px;
       border: 1px solid var(--line);
       border-radius: 16px;
       padding: 28px;
       background:
-        linear-gradient(180deg, rgba(66, 223, 196, 0.055), transparent 42%),
+        linear-gradient(180deg, var(--stage-glow), transparent 42%),
         var(--panel);
       box-shadow: 0 22px 60px rgba(0, 0, 0, 0.16);
     }
+
+    .unpair {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      min-height: 0;
+      border: 0;
+      padding: 4px 2px;
+      background: transparent;
+      color: var(--dim);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .unpair:hover:not(:disabled) {
+      background: transparent;
+      color: var(--red);
+    }
+
+    .unpair[hidden] { display: none; }
+
+    #selected-name { padding-right: 84px; }
 
     .eyebrow {
       margin: 0 0 8px;
@@ -311,6 +398,44 @@
       border-top: 1px solid var(--line);
     }
 
+    .theme-choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 4px;
+    }
+
+    .theme-choice[aria-checked="true"] {
+      border-color: var(--cyan);
+      background: var(--cyan-dark);
+      color: var(--cyan);
+    }
+
+    .chord-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .chord-label {
+      display: inline-flex;
+      align-items: center;
+      min-width: 180px;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: var(--panel-raised);
+      letter-spacing: 0.04em;
+    }
+
+    .chord-label.listening {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
     .wifi-grid {
       display: grid;
       grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.2fr);
@@ -322,7 +447,7 @@
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 18px;
-      background: rgba(16, 19, 24, 0.42);
+      background: var(--card);
     }
 
     .wifi-card h2 {
@@ -359,7 +484,7 @@
       align-items: center;
       justify-content: center;
       border: 1px solid var(--amber);
-      background: rgba(16, 19, 24, 0.94);
+      background: var(--overlay);
       color: var(--amber);
       font-size: clamp(17px, 3vw, 28px);
       letter-spacing: 0.16em;
@@ -377,7 +502,7 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
-      background: rgba(7, 9, 12, 0.78);
+      background: var(--scrim);
       backdrop-filter: blur(8px);
       z-index: 20;
     }
@@ -393,7 +518,7 @@
       border-radius: 16px;
       padding: 28px;
       background:
-        linear-gradient(180deg, rgba(66, 223, 196, 0.09), transparent 45%),
+        linear-gradient(180deg, var(--pair-glow), transparent 45%),
         var(--panel);
       box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
       text-align: center;
@@ -461,29 +586,53 @@
       </div>
       <p class="scan-note" id="scan-note">Scan the local network for KMJ devices.</p>
       <ul class="device-list" id="devices"></ul>
-      <button class="wifi-nav" id="nav-wifi" aria-label="Open Wi-Fi setup">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M3.5 8.9a13 13 0 0 1 17 0M6.7 12.2a8.5 8.5 0 0 1 10.6 0M9.8 15.5a4 4 0 0 1 4.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-          <circle cx="12" cy="19" r="1.35" fill="currentColor"/>
-        </svg>
-        <span>Wi-Fi setup</span>
-      </button>
+      <div class="sidebar-nav">
+        <button class="wifi-nav" id="nav-settings" aria-label="Open settings">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.6 1.6M16.3 16.3l1.6 1.6M17.9 6.1l-1.6 1.6M7.7 16.3l-1.6 1.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+          <span>Settings</span>
+        </button>
+        <button class="wifi-nav" id="nav-wifi" aria-label="Open Wi-Fi setup">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3.5 8.9a13 13 0 0 1 17 0M6.7 12.2a8.5 8.5 0 0 1 10.6 0M9.8 15.5a4 4 0 0 1 4.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <circle cx="12" cy="19" r="1.35" fill="currentColor"/>
+          </svg>
+          <span>Wi-Fi setup</span>
+        </button>
+      </div>
     </aside>
     <section>
       <div class="page active" id="device-page">
         <div class="stage">
+          <button id="unpair" class="unpair" hidden>Unpair</button>
           <p class="eyebrow" id="selected-name">No device selected</p>
           <h1 id="title">Released</h1>
-          <p class="note" id="note">Scan for a device, then select it to pair or connect.</p>
+          <p class="note" id="note">Scan for a device, then select it.</p>
           <div class="row">
-            <button id="pair">Pair</button>
-            <button id="connect" class="primary">Connect</button>
             <button id="grab" class="warn">Capture</button>
-            <button id="drop">Release</button>
           </div>
-          <div class="row settings-row">
-            <input id="hotkey" value="ctrl+alt+esc" aria-label="Release shortcut" />
-            <button id="savekey">Save chord</button>
+        </div>
+      </div>
+      <div class="page" id="settings-page">
+        <div class="stage">
+          <p class="eyebrow">Preferences</p>
+          <h1>Settings</h1>
+          <h2>Theme</h2>
+          <div class="theme-choices" role="radiogroup" aria-label="Theme">
+            <button class="theme-choice" id="theme-system" role="radio" aria-checked="true">System</button>
+            <button class="theme-choice" id="theme-light" role="radio" aria-checked="false">Light</button>
+            <button class="theme-choice" id="theme-dark" role="radio" aria-checked="false">Dark</button>
+          </div>
+          <div class="settings-row">
+            <h2>Release chord</h2>
+            <div class="chord-row">
+              <span class="chord-label" id="hotkey" aria-live="polite">Ctrl+Alt+Esc</span>
+              <button id="rekey" type="button" aria-pressed="false">Reconfigure</button>
+              <button id="resetkey" type="button" aria-label="Reset release chord to Ctrl+Alt+Esc">Reset</button>
+            </div>
+            <p class="note" id="settings-note">This chord ends capture and is never forwarded.</p>
           </div>
         </div>
       </div>
@@ -528,10 +677,15 @@
   <script>
     const { invoke } = window.__TAURI__.core;
     const $ = (id) => document.getElementById(id);
+    const CONNECTED_NOTE = "Connected. Click on Capture to start sending keystrokes and mouse movements to the device.";
+    const IDLE_NOTE = "The device is on. Select the KM Emulator function on the device to capture.";
     let devices = [];
     let selected = null;
-    let pairingDeviceId = null;
     let connectedDeviceId = null;
+    let deviceState = "offline";
+    let linkBusy = false;
+    let pairStartedFor = null;
+    let actionGen = 0;
     let bleDevices = [];
     let bleId = null;
 
@@ -539,6 +693,10 @@
       if (typeof error === "string") return error;
       if (error && error.message) return error.message;
       return String(error);
+    }
+
+    function isIdle(text) {
+      return text.includes("KM Emulator function");
     }
 
     async function hold(button, work, onError) {
@@ -554,22 +712,62 @@
     }
 
     function showPage(page) {
+      if (page !== "settings") cancelChordCapture();
       $("device-page").classList.toggle("active", page === "device");
+      $("settings-page").classList.toggle("active", page === "settings");
       $("wifi-page").classList.toggle("active", page === "wifi");
+      $("nav-settings").classList.toggle("active", page === "settings");
       $("nav-wifi").classList.toggle("active", page === "wifi");
     }
 
-    function selectDevice(device) {
-      selected = device;
-      showPage("device");
-      renderDevices();
+    function closePairModal() {
+      $("pair-modal").classList.remove("on");
+      $("pair-modal").setAttribute("aria-hidden", "true");
+    }
+
+    function openPairModal(device, code) {
+      $("pair-code").textContent = code;
+      $("pair-title").textContent = `Pair ${device.name}`;
+      $("pair-status").className = "pair-status pair-waiting";
+      $("pair-status").textContent = "If this code matches, tap Codes match on the KMJ device.";
+      $("pair-dismiss").hidden = true;
+      $("pair-modal").classList.add("on");
+      $("pair-modal").setAttribute("aria-hidden", "false");
+    }
+
+    function linkState(device) {
+      if (connectedDeviceId === device.id) return "connected";
+      return device.paired ? "paired" : "not paired";
+    }
+
+    function paintSelection(note) {
+      if (!selected) {
+        $("selected-name").textContent = "No device selected";
+        if (note) $("note").textContent = note;
+      } else {
+        $("selected-name").textContent = `${selected.name} @ ${selected.host} · ${linkState(selected)}`;
+        if (note) {
+          $("note").textContent = note;
+        } else if (deviceState === "idle") {
+          $("note").textContent = IDLE_NOTE;
+        } else if (deviceState === "ready" && connectedDeviceId === selected.id && $("title").textContent !== "Capturing") {
+          $("note").textContent = CONNECTED_NOTE;
+        } else if (!selected.paired) {
+          $("note").textContent = "Select this device to pair. Confirm the same six-digit code on both screens.";
+        }
+      }
       updateControls();
-      $("selected-name").textContent = `${device.name} · ${device.paired ? "paired" : "not paired"}`;
-      $("note").textContent = connectedDeviceId === device.id
-        ? `Connected to ${device.name}. Capture when ready.`
-        : device.paired
-        ? "Ready to connect. Capture forwards this computer’s keyboard and pointer."
-        : "Pair this device before connecting. Confirm the same six-digit code on both screens.";
+    }
+
+    async function beginIntent() {
+      actionGen += 1;
+      const intent = actionGen;
+      await invoke("set_intent", { intent });
+      return intent;
+    }
+
+    function stale(intent) {
+      return intent !== actionGen;
     }
 
     function renderDevices() {
@@ -591,89 +789,92 @@
         address.textContent = `${device.host}:${device.port}`;
         top.append(name, badge);
         button.append(top, address);
-        button.onclick = () => selectDevice(device);
+        button.onclick = () => {
+          activate(device).catch((error) => {
+            $("note").textContent = errText(error);
+          });
+        };
         item.appendChild(button);
         list.appendChild(item);
       }
     }
 
     function updateControls() {
-      const hasDevice = selected !== null;
-      $("pair").disabled = !hasDevice || selected.paired || pairingDeviceId !== null;
-      $("connect").disabled = !hasDevice;
-      $("grab").disabled = !hasDevice || connectedDeviceId !== selected.id;
-      $("drop").disabled = !hasDevice || connectedDeviceId !== selected.id;
+      const live = deviceState === "ready" && !!selected && connectedDeviceId === selected.id;
+      $("grab").disabled = !live;
+      $("unpair").hidden = !selected || !selected.paired;
     }
 
-    async function scanDevices() {
-      await hold($("scan"), async () => {
-        $("scan-note").textContent = "Scanning the local network…";
-        const previousId = selected && selected.id;
-        devices = await invoke("scan");
-        selected = devices.find((device) => device.id === previousId) || null;
-        if (!selected && devices.length === 1) selected = devices[0];
-        renderDevices();
-
-        if (selected) {
-          selectDevice(selected);
-          $("scan-note").textContent = devices.length === 1
-            ? "1 device found and selected."
-            : `${devices.length} devices found.`;
-        } else if (devices.length === 0) {
-          $("selected-name").textContent = "No device selected";
-          $("scan-note").textContent = "No KMJ devices found.";
-          $("note").textContent = "Check that the board is on Wi-Fi and KM Emulator is open.";
-        } else {
-          $("scan-note").textContent = `${devices.length} devices found. Select one to continue.`;
-        }
-      }, (error) => {
-        $("scan-note").textContent = error;
-      });
-    }
-
-    async function refresh() {
-      const status = await invoke("status");
-      $("phase").textContent = status.phase;
-      $("title").textContent = status.phase === "capturing" ? "Capturing" : "Released";
-      $("hotkey").value = status.hotkey;
-      $("overlay").classList.toggle("on", status.phase === "capturing");
-      if (status.notice) $("note").textContent = status.notice;
-    }
-
-    $("scan").onclick = scanDevices;
-    $("nav-devices").onclick = () => showPage("device");
-    $("nav-wifi").onclick = () => showPage("wifi");
-
-    $("pair").onclick = async () => {
-      const device = selected;
-      $("pair").disabled = true;
-      $("note").textContent = `Starting pairing with ${device.name}…`;
+    async function connectSelected(device, intent, announce) {
+      if (connectedDeviceId && connectedDeviceId !== device.id) {
+        await invoke("disconnect", { intent });
+        if (stale(intent)) return;
+        connectedDeviceId = null;
+      }
+      if (announce) {
+        deviceState = "checking";
+        updateControls();
+        paintSelection(`Connecting to ${device.name}…`);
+      }
       try {
-        const code = await invoke("pair", { host: device.host, port: device.port });
-        pairingDeviceId = device.id;
-        $("pair-code").textContent = code;
-        $("pair-title").textContent = `Pair ${device.name}`;
-        $("pair-status").className = "pair-status pair-waiting";
-        $("pair-status").textContent = "If this code matches, tap Codes match on the KMJ device.";
-        $("pair-dismiss").hidden = true;
-        $("pair-modal").classList.add("on");
-        $("pair-modal").setAttribute("aria-hidden", "false");
-
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        await invoke("confirm_pair");
-
-        devices = devices.map((entry) => entry.id === device.id ? { ...entry, paired: true } : entry);
-        selected = devices.find((entry) => entry.id === device.id) || selected;
-        renderDevices();
-        $("selected-name").textContent = `${selected.name} · paired`;
-        $("note").textContent = "Pairing saved. This device is ready to connect.";
-        $("pair-status").className = "pair-status";
-        $("pair-status").textContent = "Paired successfully. This device will be remembered.";
-        $("pair-dismiss").hidden = false;
-        $("pair-dismiss").focus();
-        await refresh();
+        await invoke("connect_device", { host: device.host, port: device.port, intent });
       } catch (error) {
-        $("note").textContent = errText(error);
+        if (stale(intent)) return;
+        const text = errText(error);
+        connectedDeviceId = null;
+        if (isIdle(text)) {
+          deviceState = "idle";
+          paintSelection(IDLE_NOTE);
+        } else {
+          deviceState = "offline";
+          paintSelection(text);
+        }
+        return;
+      }
+      if (stale(intent)) return;
+      deviceState = "ready";
+      connectedDeviceId = device.id;
+      paintSelection();
+      await refresh();
+    }
+
+    async function startPair(device, intent) {
+      paintSelection(`Starting pairing with ${device.name}…`);
+      try {
+        let code;
+        try {
+          code = await invoke("pair", { host: device.host, port: device.port, intent });
+        } catch (error) {
+          const text = errText(error);
+          if (stale(intent) || text === "cancelled" || isIdle(text)) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          if (stale(intent)) return;
+          code = await invoke("pair", { host: device.host, port: device.port, intent });
+        }
+        if (stale(intent)) return;
+        openPairModal(device, code);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if (stale(intent)) return;
+        await invoke("confirm_pair", { intent });
+        devices = devices.map((entry) => entry.id === device.id ? { ...entry, paired: true } : entry);
+        if (selected && selected.id === device.id) {
+          selected = devices.find((entry) => entry.id === device.id) || selected;
+        }
+        renderDevices();
+        if (stale(intent) || !selected || selected.id !== device.id) return;
+        closePairModal();
+        await connectSelected(device, intent, true);
+      } catch (error) {
+        if (stale(intent) || errText(error) === "cancelled") return;
+        const text = errText(error);
+        if (isIdle(text)) {
+          deviceState = "idle";
+          pairStartedFor = null;
+          paintSelection(IDLE_NOTE);
+          return;
+        }
+        deviceState = "offline";
+        paintSelection(text);
         if ($("pair-modal").classList.contains("on")) {
           $("pair-status").className = "pair-status";
           $("pair-status").textContent = errText(error);
@@ -681,48 +882,499 @@
           $("pair-dismiss").focus();
         }
       } finally {
-        pairingDeviceId = null;
         updateControls();
       }
-    };
+    }
+
+    async function waitUntilIdle() {
+      while (linkBusy) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+    }
+
+    async function followUnpaired(device, intent, fromUser) {
+      if ($("pair-modal").classList.contains("on")) return;
+      if (pairStartedFor === device.id && !fromUser) return;
+      const presence = await invoke("device_reach", { host: device.host, port: device.port });
+      if (stale(intent) || !selected || selected.id !== device.id) return;
+      if (presence === "idle") {
+        deviceState = "idle";
+        pairStartedFor = null;
+        paintSelection(IDLE_NOTE);
+        return;
+      }
+      if (presence !== "ready") {
+        deviceState = "offline";
+        paintSelection("The device is not reachable.");
+        return;
+      }
+      pairStartedFor = device.id;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (stale(intent) || !selected || selected.id !== device.id) return;
+      await startPair(device, intent);
+    }
+
+    async function activate(device) {
+      const intent = await beginIntent();
+      if (stale(intent)) return;
+      await waitUntilIdle();
+      if (stale(intent)) return;
+      selected = device;
+      pairStartedFor = null;
+      showPage("device");
+      renderDevices();
+      deviceState = "checking";
+      updateControls();
+      linkBusy = true;
+      try {
+        if (device.paired) {
+          closePairModal();
+          if (connectedDeviceId === device.id) {
+            const status = await invoke("status");
+            if (stale(intent)) return;
+            if (status.linked) {
+              deviceState = "ready";
+              paintSelection();
+              return;
+            }
+            connectedDeviceId = null;
+          }
+          await connectSelected(device, intent, true);
+          return;
+        }
+        closePairModal();
+        await followUnpaired(device, intent, true);
+      } finally {
+        linkBusy = false;
+      }
+    }
+
+    async function scanDevices() {
+      await hold($("scan"), async () => {
+        $("scan-note").textContent = "Scanning the local network…";
+        const previousId = selected && selected.id;
+        devices = await invoke("scan");
+        const still = devices.find((device) => device.id === previousId) || null;
+        const picked = still || (devices.length === 1 ? devices[0] : null);
+        if (!picked) {
+          selected = null;
+          renderDevices();
+          $("selected-name").textContent = "No device selected";
+          if (devices.length === 0) {
+            $("scan-note").textContent = "No KMJ devices found.";
+            $("note").textContent = "Check that the board is on Wi-Fi.";
+          } else {
+            $("scan-note").textContent = `${devices.length} devices found. Select one to continue.`;
+            $("note").textContent = "Select a device to continue.";
+          }
+          updateControls();
+          return;
+        }
+        const autoConnect = !still && picked.paired && connectedDeviceId !== picked.id;
+        if (autoConnect) {
+          $("scan-note").textContent = "1 device found and selected.";
+          await activate(picked);
+          return;
+        }
+        selected = picked;
+        showPage("device");
+        renderDevices();
+        paintSelection();
+        $("scan-note").textContent = devices.length === 1
+          ? "1 device found and selected."
+          : `${devices.length} devices found.`;
+      }, (error) => {
+        $("scan-note").textContent = error;
+      });
+    }
+
+    async function applyTheme(theme) {
+      const value = theme === "light" || theme === "dark" ? theme : "system";
+      document.documentElement.dataset.theme = value;
+      for (const name of ["system", "light", "dark"]) {
+        const button = $(`theme-${name}`);
+        const on = name === value;
+        button.setAttribute("aria-checked", on ? "true" : "false");
+        button.classList.toggle("selected", on);
+      }
+      const api = window.__TAURI__.window;
+      if (api && api.getCurrentWindow) {
+        try {
+          await api.getCurrentWindow().setTheme(value === "system" ? null : value);
+        } catch (error) {
+          // set_theme also updates the native window.
+        }
+      }
+    }
+
+    async function refresh() {
+      const status = await invoke("status");
+      const capturing = status.phase === "capturing";
+      $("phase").textContent = status.phase;
+      $("title").textContent = capturing ? "Capturing" : "Released";
+      savedHotkey = status.hotkey;
+      if (!chordCapture) $("hotkey").textContent = formatChord(status.hotkey);
+      $("overlay").textContent = `Capturing · ${formatChord(status.hotkey)} releases`;
+      $("overlay").classList.toggle("on", capturing);
+      await applyTheme(status.theme);
+      if (deviceState !== "checking" && selected && !status.linked && !capturing && connectedDeviceId === selected.id) {
+        connectedDeviceId = null;
+        if (deviceState === "ready") deviceState = "idle";
+      }
+      if (deviceState === "idle" && selected) {
+        $("note").textContent = IDLE_NOTE;
+      } else if (status.notice) {
+        $("note").textContent = status.notice;
+      } else if (!capturing && deviceState === "ready" && selected && connectedDeviceId === selected.id) {
+        $("note").textContent = CONNECTED_NOTE;
+      }
+      if (selected) {
+        $("selected-name").textContent = `${selected.name} @ ${selected.host} · ${linkState(selected)}`;
+      }
+      updateControls();
+    }
+
+    $("scan").onclick = scanDevices;
+    $("nav-devices").onclick = () => showPage("device");
+    $("nav-settings").onclick = () => showPage("settings");
+    $("nav-wifi").onclick = () => showPage("wifi");
 
     $("pair-dismiss").onclick = () => {
-      $("pair-modal").classList.remove("on");
-      $("pair-modal").setAttribute("aria-hidden", "true");
-      $("pair").focus();
+      closePairModal();
+      if (!$("grab").disabled) $("grab").focus();
     };
 
-    $("connect").onclick = () => hold($("connect"), async () => {
-      const device = selected;
-      $("note").textContent = `Connecting to ${device.name}…`;
-      await invoke("connect_device", { host: device.host, port: device.port });
-      connectedDeviceId = device.id;
-      $("note").textContent = `Connected to ${device.name}. Capture when ready.`;
-      await refresh();
-    }, (error) => {
-      $("note").textContent = error;
-    });
-
     $("grab").onclick = () => hold($("grab"), async () => {
-      await invoke("capture", { enable: true });
+      await invoke("capture");
       await refresh();
     }, (error) => {
       $("note").textContent = error;
     });
 
-    $("drop").onclick = () => hold($("drop"), async () => {
-      await invoke("capture", { enable: false });
+    $("unpair").onclick = () => hold($("unpair"), async () => {
+      const device = selected;
+      if (!device) return;
+      const intent = await beginIntent();
+      if (stale(intent)) return;
+      closePairModal();
+      if (connectedDeviceId === device.id) {
+        await invoke("disconnect", { intent });
+        if (stale(intent)) return;
+        connectedDeviceId = null;
+      }
+      await invoke("unpair", { id: device.id });
+      if (stale(intent)) return;
+      devices = devices.map((entry) => entry.id === device.id ? { ...entry, paired: false } : entry);
+      selected = devices.find((entry) => entry.id === device.id) || { ...device, paired: false };
+      renderDevices();
       await refresh();
+      if (stale(intent)) return;
+      paintSelection(`${device.name} is no longer paired on this computer.`);
     }, (error) => {
       $("note").textContent = error;
     });
 
-    $("savekey").onclick = () => hold($("savekey"), async () => {
-      await invoke("set_hotkey", { hotkey: $("hotkey").value });
-      $("note").textContent = "Release shortcut saved.";
+    for (const name of ["system", "light", "dark"]) {
+      $(`theme-${name}`).onclick = () => hold($(`theme-${name}`), async () => {
+        await applyTheme(name);
+        await invoke("set_theme", { theme: name });
+      }, (error) => {
+        $("settings-note").textContent = error;
+      });
+    }
+
+    const CHORD_NOTE = "This chord ends capture and is never forwarded.";
+    const CHORD_SHORT = "Use a chord of at least two keys, such as Ctrl+Alt+Esc.";
+    const DEFAULT_HOTKEY = "ctrl+alt+esc";
+    const CHORD_MODS = ["ctrl", "alt", "shift", "super"];
+    let savedHotkey = DEFAULT_HOTKEY;
+    let chordCapture = null;
+
+    function formatChord(hotkey) {
+      const titles = {
+        ctrl: "Ctrl", control: "Ctrl", alt: "Alt", shift: "Shift",
+        super: "Super", meta: "Super", win: "Super",
+        esc: "Esc", escape: "Esc", tab: "Tab", space: "Space",
+        enter: "Enter", return: "Enter", backspace: "Backspace",
+        minus: "Minus", equal: "Equal", leftbracket: "[", rightbracket: "]",
+        backslash: "\\", semicolon: ";", quote: "'", grave: "`",
+        comma: ",", period: ".", slash: "/",
+        insert: "Insert", home: "Home", pageup: "Page Up", delete: "Delete",
+        end: "End", pagedown: "Page Down", right: "Right", left: "Left",
+        down: "Down", up: "Up",
+      };
+      return hotkey.split("+").filter(Boolean).map((part) => {
+        const name = part.trim().toLowerCase();
+        if (/^[a-z0-9]$/.test(name) || /^f\d+$/.test(name)) return name.toUpperCase();
+        return titles[name] || part.trim();
+      }).join("+");
+    }
+
+    function tokenFromCode(code) {
+      const mods = {
+        ControlLeft: "ctrl", ControlRight: "ctrl",
+        AltLeft: "alt", AltRight: "alt", AltGraph: "alt",
+        ShiftLeft: "shift", ShiftRight: "shift",
+        MetaLeft: "super", MetaRight: "super", OSLeft: "super", OSRight: "super",
+      };
+      if (mods[code]) return mods[code];
+      const named = {
+        Escape: "esc", Tab: "tab", Space: "space", Enter: "enter", NumpadEnter: "enter",
+        Backspace: "backspace", Minus: "minus", Equal: "equal",
+        BracketLeft: "leftbracket", BracketRight: "rightbracket", Backslash: "backslash",
+        Semicolon: "semicolon", Quote: "quote", Backquote: "grave",
+        Comma: "comma", Period: "period", Slash: "slash",
+        Insert: "insert", Home: "home", PageUp: "pageup", Delete: "delete",
+        End: "end", PageDown: "pagedown",
+        ArrowRight: "right", ArrowLeft: "left", ArrowDown: "down", ArrowUp: "up",
+      };
+      if (named[code]) return named[code];
+      if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+      if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+      if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code.toLowerCase();
+      return null;
+    }
+
+    function tokenFromKey(key) {
+      const named = {
+        Escape: "esc", Esc: "esc",
+        Control: "ctrl", Alt: "alt", Shift: "shift", Meta: "super",
+        Tab: "tab", " ": "space", Enter: "enter", Backspace: "backspace",
+        ArrowRight: "right", ArrowLeft: "left", ArrowDown: "down", ArrowUp: "up",
+        Delete: "delete", Insert: "insert", Home: "home", End: "end",
+        PageUp: "pageup", PageDown: "pagedown",
+      };
+      if (named[key]) return named[key];
+      if (/^F([1-9]|1[0-9]|2[0-4])$/.test(key)) return key.toLowerCase();
+      return null;
+    }
+
+    function eventToken(event) {
+      const fromCode = event.code ? tokenFromCode(event.code) : null;
+      if (fromCode) return { id: event.code, name: fromCode };
+      const fromKey = tokenFromKey(event.key);
+      if (fromKey) return { id: `key:${event.key}`, name: fromKey };
+      return null;
+    }
+
+    function chordFromHeld(names, order) {
+      const mods = CHORD_MODS.filter((name) => names.has(name));
+      const rest = [];
+      for (const name of order) {
+        if (!CHORD_MODS.includes(name) && names.has(name) && !rest.includes(name)) rest.push(name);
+      }
+      return [...mods, ...rest];
+    }
+
+    function nameFromUsage(usage) {
+      if (usage >= 0x04 && usage <= 0x1d) return String.fromCharCode(0x61 + usage - 0x04);
+      if (usage >= 0x1e && usage <= 0x26) return String(usage - 0x1e + 1);
+      if (usage === 0x27) return "0";
+      if (usage >= 0x3a && usage <= 0x45) return `f${usage - 0x39}`;
+      if (usage >= 0x68 && usage <= 0x73) return `f${usage - 0x68 + 13}`;
+      const named = {
+        0x28: "enter", 0x29: "esc", 0x2a: "backspace", 0x2b: "tab", 0x2c: "space",
+        0x2d: "minus", 0x2e: "equal", 0x2f: "leftbracket", 0x30: "rightbracket",
+        0x31: "backslash", 0x33: "semicolon", 0x34: "quote", 0x35: "grave",
+        0x36: "comma", 0x37: "period", 0x38: "slash",
+        0x49: "insert", 0x4a: "home", 0x4b: "pageup", 0x4c: "delete",
+        0x4d: "end", 0x4e: "pagedown", 0x4f: "right", 0x50: "left", 0x51: "down", 0x52: "up",
+        0xe0: "ctrl", 0xe4: "ctrl", 0xe1: "shift", 0xe5: "shift",
+        0xe2: "alt", 0xe6: "alt", 0xe3: "super", 0xe7: "super",
+      };
+      return named[usage] || null;
+    }
+
+    function heldNames() {
+      return new Set(chordCapture.held.values());
+    }
+
+    function currentChord(extra) {
+      const names = heldNames();
+      const order = chordCapture.order;
+      if (extra && !names.has(extra)) {
+        names.add(extra);
+        if (!order.includes(extra)) order.push(extra);
+      }
+      return chordFromHeld(names, order);
+    }
+
+    function paintChordCapture() {
+      const chord = currentChord();
+      $("hotkey").textContent = chord.length ? formatChord(chord.join("+")) : "Press a chord";
+      $("settings-note").textContent = chord.length
+        ? "Release a key to save this chord."
+        : "Press the new chord. It is saved when you release a key.";
+    }
+
+    function stopChordWatch() {
+      invoke("set_chord_listen", { on: false }).catch(() => {});
+    }
+
+    function stopChordListeners() {
+      stopChordWatch();
+      if (!chordCapture) return;
+      window.removeEventListener("keydown", chordCapture.onDown, true);
+      window.removeEventListener("keyup", chordCapture.onUp, true);
+      window.removeEventListener("blur", chordCapture.onBlur, true);
+      chordCapture = null;
+      const button = $("rekey");
+      button.textContent = "Reconfigure";
+      button.setAttribute("aria-pressed", "false");
+      button.classList.remove("warn");
+      $("hotkey").classList.remove("listening");
+    }
+
+    function cancelChordCapture() {
+      if (!chordCapture) return;
+      stopChordListeners();
+      $("hotkey").textContent = formatChord(savedHotkey);
+      $("settings-note").textContent = CHORD_NOTE;
+    }
+
+    function resetChordAttempt(message) {
+      chordCapture.held.clear();
+      chordCapture.order.length = 0;
+      $("hotkey").textContent = "Press a chord";
+      $("settings-note").textContent = message;
+    }
+
+    async function commitChord(keys) {
+      const hotkey = keys.join("+");
+      stopChordListeners();
+      const button = $("rekey");
+      button.disabled = true;
+      $("resetkey").disabled = true;
+      $("hotkey").textContent = formatChord(hotkey);
+      try {
+        await invoke("set_hotkey", { hotkey });
+        savedHotkey = hotkey;
+        $("settings-note").textContent = "Release chord saved.";
+        await refresh();
+      } catch (error) {
+        $("hotkey").textContent = formatChord(savedHotkey);
+        $("settings-note").textContent = errText(error);
+      } finally {
+        button.disabled = false;
+        $("resetkey").disabled = false;
+      }
+    }
+
+    function pressChordKey(id, name) {
+      if (!chordCapture || chordCapture.held.has(id)) return;
+      chordCapture.held.set(id, name);
+      if (!chordCapture.order.includes(name)) chordCapture.order.push(name);
+      paintChordCapture();
+    }
+
+    function releaseChordKey(id, name) {
+      if (!chordCapture) return;
+      const wasDown = chordCapture.held.delete(id);
+      if (heldNames().has(name)) {
+        paintChordCapture();
+        return;
+      }
+      if (!CHORD_MODS.includes(name)) {
+        if (!wasDown && !chordCapture.order.includes(name)) chordCapture.order.push(name);
+        const chord = currentChord(name);
+        if (chord.length >= 2) {
+          commitChord(chord);
+          return;
+        }
+        resetChordAttempt(CHORD_SHORT);
+        return;
+      }
+      if (!wasDown) return;
+      if (chordCapture.held.size === 0) {
+        const mods = CHORD_MODS.filter((mod) => chordCapture.order.includes(mod));
+        const hadOther = chordCapture.order.some((key) => !CHORD_MODS.includes(key));
+        if (!hadOther && mods.length >= 2) {
+          commitChord(mods);
+          return;
+        }
+        resetChordAttempt(CHORD_SHORT);
+        return;
+      }
+      paintChordCapture();
+    }
+
+    async function beginChordCapture() {
+      const button = $("rekey");
+      button.disabled = true;
+      let native = false;
+      try {
+        await invoke("set_chord_listen", { on: true });
+        native = true;
+      } catch (error) {
+        $("settings-note").textContent = errText(error);
+      }
+      button.disabled = false;
+      const capture = {
+        native,
+        held: new Map(),
+        order: [],
+        onDown(event) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (event.repeat || !chordCapture || chordCapture.native) return;
+          const token = eventToken(event);
+          if (!token) {
+            $("settings-note").textContent = "That key can't be part of the release chord.";
+            return;
+          }
+          pressChordKey(token.id, token.name);
+        },
+        onUp(event) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (!chordCapture || chordCapture.native) return;
+          const token = eventToken(event);
+          if (!token) return;
+          releaseChordKey(token.id, token.name);
+        },
+        onBlur() {
+          if (!chordCapture || chordCapture.native) return;
+          const chord = currentChord();
+          const hasKey = chord.some((name) => !CHORD_MODS.includes(name));
+          if (hasKey && chord.length >= 2) {
+            commitChord(chord);
+            return;
+          }
+          chordCapture.held.clear();
+          chordCapture.order.length = 0;
+          $("hotkey").textContent = "Press a chord";
+          $("settings-note").textContent = "Press the new chord. It is saved when you release a key.";
+        },
+      };
+      chordCapture = capture;
+      window.addEventListener("keydown", capture.onDown, true);
+      window.addEventListener("keyup", capture.onUp, true);
+      window.addEventListener("blur", capture.onBlur, true);
+      button.textContent = "Cancel";
+      button.setAttribute("aria-pressed", "true");
+      button.classList.add("warn");
+      $("hotkey").classList.add("listening");
+      $("hotkey").textContent = "Press a chord";
+      if (native) {
+        $("settings-note").textContent = "Press the new chord. It is saved when you release a key.";
+      }
+      button.blur();
+    }
+
+    $("rekey").onclick = () => {
+      if (chordCapture) cancelChordCapture();
+      else beginChordCapture();
+    };
+
+    $("resetkey").onclick = () => hold($("resetkey"), async () => {
+      if (chordCapture) cancelChordCapture();
+      await invoke("set_hotkey", { hotkey: DEFAULT_HOTKEY });
+      savedHotkey = DEFAULT_HOTKEY;
+      $("hotkey").textContent = formatChord(DEFAULT_HOTKEY);
+      $("settings-note").textContent = "Release chord reset to Ctrl+Alt+Esc.";
       await refresh();
     }, (error) => {
-      $("note").textContent = error;
+      $("settings-note").textContent = error;
     });
 
     function renderBleDevices() {
@@ -806,7 +1458,49 @@
       $("wifi-note").textContent = error;
     });
 
-    window.__TAURI__.event.listen("phase", () => refresh());
+    async function watchDevice() {
+      if (linkBusy || !selected || $("pair-modal").classList.contains("on")) return;
+      const status = await invoke("status");
+      if (status.phase === "capturing" || $("title").textContent === "Capturing") return;
+      const device = selected;
+      const intent = actionGen;
+      linkBusy = true;
+      try {
+        if (!device.paired) {
+          await followUnpaired(device, intent, false);
+          return;
+        }
+        if (status.linked && connectedDeviceId === device.id) {
+          const was = deviceState;
+          deviceState = "ready";
+          if (was !== "ready") paintSelection();
+          else updateControls();
+          return;
+        }
+        await connectSelected(device, intent, false);
+      } finally {
+        linkBusy = false;
+      }
+    }
+
+    window.__TAURI__.event.listen("phase", () => {
+      refresh().then(() => watchDevice()).catch((error) => {
+        $("note").textContent = errText(error);
+      });
+    });
+    window.__TAURI__.event.listen("chord-key", (event) => {
+      if (!chordCapture || !chordCapture.native) return;
+      const name = nameFromUsage(event.payload.usage);
+      if (!name) return;
+      const id = `hid:${event.payload.usage}`;
+      if (event.payload.down) pressChordKey(id, name);
+      else releaseChordKey(id, name);
+    });
+    setInterval(() => {
+      watchDevice().catch((error) => {
+        if (selected && !linkBusy) $("note").textContent = errText(error);
+      });
+    }, 1500);
     updateControls();
     refresh().catch((error) => {
       $("note").textContent = errText(error);

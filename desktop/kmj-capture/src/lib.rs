@@ -38,6 +38,9 @@ pub fn open() -> io::Result<Box<dyn InputCapture>> {
 
 #[cfg(target_os = "linux")]
 mod linux;
+
+#[cfg(target_os = "linux")]
+pub use linux::spawn_chord_watch;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "windows")]
@@ -100,16 +103,53 @@ pub fn linux_key_to_hid(code: u16) -> Option<u8> {
         52 => 0x37,
         53 => 0x38,
         54 => 0xE5, // right shift
+        55 => 0x55, // keypad *
         56 => 0xE2, // left alt
         57 => 0x2C, // space
         58 => 0x39, // caps
+        59..=68 => 0x3A + (code as u8 - 59), // F1-F10
+        69 => 0x53, // num lock
+        70 => 0x47, // scroll lock
+        71 => 0x5F, // keypad 7
+        72 => 0x60,
+        73 => 0x61,
+        74 => 0x56, // keypad -
+        75 => 0x5C, // keypad 4
+        76 => 0x5D,
+        77 => 0x5E,
+        78 => 0x57, // keypad +
+        79 => 0x59, // keypad 1
+        80 => 0x5A,
+        81 => 0x5B,
+        82 => 0x62, // keypad 0
+        83 => 0x63, // keypad .
+        86 => 0x64, // non-US \ |
+        87 => 0x44, // F11
+        88 => 0x45, // F12
+        96 => 0x58, // keypad enter
         97 => 0xE4, // right ctrl
+        98 => 0x54, // keypad /
+        99 => 0x46, // print screen
         100 => 0xE6, // right alt
+        102 => 0x4A, // home
         103 => 0x52, // up
-        105 => 0x50,
-        106 => 0x4F,
-        108 => 0x51,
+        104 => 0x4B, // page up
+        105 => 0x50, // left
+        106 => 0x4F, // right
+        107 => 0x4D, // end
+        108 => 0x51, // down
+        109 => 0x4E, // page down
+        110 => 0x49, // insert
+        111 => 0x4C, // delete
+        113 => 0x7F, // mute
+        114 => 0x81, // volume down
+        115 => 0x80, // volume up
+        117 => 0x67, // keypad =
+        119 => 0x48, // pause
         125 => 0xE3, // left meta
+        126 => 0xE7, // right meta
+        127 | 139 => 0x65, // compose / menu
+        183..=194 => 0x68 + (code as u8 - 183), // F13-F24
         _ => return None,
     })
 }
@@ -124,5 +164,16 @@ mod tests {
         assert_eq!(linux_key_to_hid(56), Some(0xE2));
         assert_eq!(linux_key_to_hid(1), Some(0x29));
         assert_eq!(linux_key_to_hid(30), Some(0x04));
+        assert_eq!(linux_key_to_hid(59), Some(0x3A));
+        assert_eq!(linux_key_to_hid(68), Some(0x43));
+        assert_eq!(linux_key_to_hid(87), Some(0x44));
+        assert_eq!(linux_key_to_hid(88), Some(0x45));
+        assert_eq!(linux_key_to_hid(183), Some(0x68));
+        assert_eq!(linux_key_to_hid(194), Some(0x73));
+        assert_eq!(linux_key_to_hid(102), Some(0x4A));
+        assert_eq!(linux_key_to_hid(111), Some(0x4C));
+        assert_eq!(linux_key_to_hid(55), Some(0x55));
+        assert_eq!(linux_key_to_hid(96), Some(0x58));
+        assert_eq!(linux_key_to_hid(126), Some(0xE7));
     }
 }

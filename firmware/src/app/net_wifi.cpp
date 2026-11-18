@@ -152,7 +152,12 @@ void net_ip(char* buf, size_t cap) {
 void net_mac(char* buf, size_t cap) { snprintf(buf, cap, "%s", WiFi.macAddress().c_str()); }
 
 void net_advertise(bool on, const char* name, uint16_t port) {
-  if (!net_connected()) {
+  if (!on || !net_connected()) {
+    if (g_mdns_up) {
+      MDNS.end();
+      g_mdns_up = false;
+      g_service = false;
+    }
     return;
   }
   if (!g_mdns_up) {
@@ -161,20 +166,17 @@ void net_advertise(bool on, const char* name, uint16_t port) {
     }
     g_mdns_up = true;
   }
-  if (on && !g_service) {
-    MDNS.addService("kmj", "tcp", port);
-    if (name != nullptr) {
-      MDNS.addServiceTxt("kmj", "tcp", "name", name);
-    }
-    char identity[65] = {};
-    identity_text(identity);
-    MDNS.addServiceTxt("kmj", "tcp", "id", static_cast<const char*>(identity));
-    g_service = true;
-  } else if (!on && g_service) {
-    MDNS.end();
-    g_mdns_up = false;
-    g_service = false;
+  if (g_service) {
+    return;
   }
+  MDNS.addService("kmj", "tcp", port);
+  if (name != nullptr) {
+    MDNS.addServiceTxt("kmj", "tcp", "name", name);
+  }
+  char identity[65] = {};
+  identity_text(identity);
+  MDNS.addServiceTxt("kmj", "tcp", "id", static_cast<const char*>(identity));
+  g_service = true;
 }
 
 }  // namespace kmj

@@ -14,6 +14,11 @@ use serde::{Deserialize, Serialize};
 pub use kmj_capture::open as open_capture;
 pub use kmj_proto::Error as ProtoError;
 
+/// Shown when the board is on the network but KM Emulator is not the active function.
+pub const EMULATOR_CLOSED: &str =
+    "The device is on. Select the KM Emulator function on the device to capture.";
+pub const DEVICE_UNREACHABLE: &str = "The device is not reachable.";
+
 pub mod improv;
 
 #[derive(Debug, thiserror::Error)]
@@ -69,12 +74,12 @@ impl GrabFsm {
         }
         self.down[usage as usize] = down;
         if !down {
-            if !self.chord.iter().all(|key| self.down[*key as usize]) {
+            if !self.chord.iter().all(|key| self.held(*key)) {
                 self.latched = false;
             }
             return Decision::Forward;
         }
-        let chord = self.chord.iter().all(|key| self.down[*key as usize]);
+        let chord = self.chord.iter().all(|key| self.held(*key));
         if chord && !self.latched {
             self.latched = true;
             self.phase = Phase::Released;
@@ -82,23 +87,124 @@ impl GrabFsm {
         }
         Decision::Forward
     }
+
+    /// Left and right modifiers satisfy the same chord token.
+    fn held(&self, usage: u8) -> bool {
+        let other = match usage {
+            0xE0 => 0xE4,
+            0xE4 => 0xE0,
+            0xE1 => 0xE5,
+            0xE5 => 0xE1,
+            0xE2 => 0xE6,
+            0xE6 => 0xE2,
+            0xE3 => 0xE7,
+            0xE7 => 0xE3,
+            _ => return self.down[usage as usize],
+        };
+        self.down[usage as usize] || self.down[other as usize]
+    }
+}
+
+fn hotkey_usage(name: &str) -> Option<u8> {
+    match name.trim().to_ascii_lowercase().as_str() {
+        "ctrl" | "control" => Some(0xE0),
+        "shift" => Some(0xE1),
+        "alt" => Some(0xE2),
+        "super" | "meta" | "win" => Some(0xE3),
+        "enter" | "return" => Some(0x28),
+        "esc" | "escape" => Some(0x29),
+        "backspace" => Some(0x2A),
+        "tab" => Some(0x2B),
+        "space" => Some(0x2C),
+        "minus" => Some(0x2D),
+        "equal" => Some(0x2E),
+        "leftbracket" => Some(0x2F),
+        "rightbracket" => Some(0x30),
+        "backslash" => Some(0x31),
+        "semicolon" => Some(0x33),
+        "quote" => Some(0x34),
+        "grave" => Some(0x35),
+        "comma" => Some(0x36),
+        "period" => Some(0x37),
+        "slash" => Some(0x38),
+        "insert" => Some(0x49),
+        "home" => Some(0x4A),
+        "pageup" => Some(0x4B),
+        "delete" => Some(0x4C),
+        "end" => Some(0x4D),
+        "pagedown" => Some(0x4E),
+        "right" => Some(0x4F),
+        "left" => Some(0x50),
+        "down" => Some(0x51),
+        "up" => Some(0x52),
+        "0" => Some(0x27),
+        other => {
+            let bytes = other.as_bytes();
+            if bytes.len() == 1 && bytes[0].is_ascii_lowercase() {
+                return Some(0x04 + (bytes[0] - b'a'));
+            }
+            if bytes.len() == 1 && bytes[0].is_ascii_digit() && bytes[0] != b'0' {
+                return Some(0x1D + (bytes[0] - b'0'));
+            }
+            let rest = other.strip_prefix('f')?;
+            let n: u8 = rest.parse().ok()?;
+            match n {
+                1..=12 => Some(0x39 + n),
+                13..=24 => Some(0x68 + (n - 13)),
+                _ => None,
+            }
+        }
+    }
+}
+
+fn normalize_token(part: &str) -> Option<String> {
+    let name = part.trim().to_ascii_lowercase();
+    let canonical = match name.as_str() {
+        "control" => "ctrl",
+        "escape" => "esc",
+        "meta" | "win" => "super",
+        "return" => "enter",
+        other => other,
+    };
+    hotkey_usage(canonical)?;
+    Some(canonical.to_string())
+}
+
+/// Accept a chord only when every part is a known key and at least two keys remain.
+pub fn normalize_hotkey(text: &str) -> Option<String> {
+    let mut seen = Vec::new();
+    let mut names = Vec::new();
+    for part in text.split('+') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let name = normalize_token(part)?;
+        let usage = hotkey_usage(&name)?;
+        if seen.contains(&usage) {
+            continue;
+        }
+        seen.push(usage);
+        names.push(name);
+    }
+    if names.len() < 2 {
+        None
+    } else {
+        Some(names.join("+"))
+    }
 }
 
 pub fn parse_hotkey(text: &str) -> Vec<u8> {
-    text.split('+')
-        .filter_map(|part| match part.trim().to_ascii_lowercase().as_str() {
-            "ctrl" | "control" => Some(0xE0),
-            "alt" => Some(0xE2),
-            "shift" => Some(0xE1),
-            "super" | "meta" | "win" => Some(0xE3),
-            "esc" | "escape" => Some(0x29),
-            other if other.len() == 1 => {
-                let c = other.as_bytes()[0];
-                if c.is_ascii_lowercase() { Some(0x04 + (c - b'a')) } else { None }
-            }
-            _ => None,
-        })
-        .collect()
+    let mut chord = Vec::new();
+    for part in text.split('+') {
+        let Some(usage) = hotkey_usage(part) else {
+            continue;
+        };
+        if !chord.contains(&usage) {
+            chord.push(usage);
+        }
+    }
+    chord
 }
 
 #[derive(Clone, Debug)]
@@ -169,6 +275,10 @@ pub fn discover(wait: Duration) -> Vec<Endpoint> {
     found.into_values().collect()
 }
 
+fn default_theme() -> String {
+    "system".into()
+}
+
 #[derive(Serialize, Deserialize)]
 struct FileStore {
     priv_hex: String,
@@ -176,6 +286,8 @@ struct FileStore {
     hotkey: String,
     #[serde(default)]
     devices: Vec<KnownDevice>,
+    #[serde(default = "default_theme")]
+    theme: String,
 }
 
 pub struct Store {
@@ -184,14 +296,21 @@ pub struct Store {
     pub peers: Vec<[u8; 32]>,
     pub hotkey: String,
     pub devices: Vec<KnownDevice>,
+    pub theme: String,
 }
 
 impl Store {
     pub fn load(path: PathBuf) -> Result<Self> {
         if !path.exists() {
             let identity = Identity::from_priv(random32());
-            let store =
-                Self { path, identity, peers: Vec::new(), hotkey: "ctrl+alt+esc".into(), devices: Vec::new() };
+            let store = Self {
+                path,
+                identity,
+                peers: Vec::new(),
+                hotkey: "ctrl+alt+esc".into(),
+                devices: Vec::new(),
+                theme: default_theme(),
+            };
             store.save()?;
             return Ok(store);
         }
@@ -199,7 +318,11 @@ impl Store {
         let file: FileStore = serde_json::from_str(&text).map_err(|err| Error::Msg(err.to_string()))?;
         let identity = Identity::from_priv(parse_hex32(&file.priv_hex)?);
         let peers = file.peers.iter().map(|p| parse_hex32(p)).collect::<Result<Vec<_>>>()?;
-        Ok(Self { path, identity, peers, hotkey: file.hotkey, devices: file.devices })
+        let theme = match file.theme.as_str() {
+            "light" | "dark" | "system" => file.theme,
+            _ => default_theme(),
+        };
+        Ok(Self { path, identity, peers, hotkey: file.hotkey, devices: file.devices, theme })
     }
 
     pub fn save(&self) -> Result<()> {
@@ -211,6 +334,7 @@ impl Store {
             peers: self.peers.iter().map(|p| hex(p)).collect(),
             hotkey: self.hotkey.clone(),
             devices: self.devices.clone(),
+            theme: self.theme.clone(),
         };
         fs::write(&self.path, serde_json::to_string_pretty(&file).unwrap())?;
         Ok(())
@@ -222,6 +346,19 @@ impl Store {
             self.save()?;
         }
         Ok(())
+    }
+
+    pub fn remove_peer(&mut self, pub_key: [u8; 32]) -> Result<()> {
+        let before = self.peers.len();
+        self.peers.retain(|peer| peer != &pub_key);
+        if self.peers.len() != before {
+            self.save()?;
+        }
+        Ok(())
+    }
+
+    pub fn remove_peer_id(&mut self, id: &str) -> Result<()> {
+        self.remove_peer(parse_hex32(id)?)
     }
 
     pub fn replace_devices(&mut self, endpoints: &[Endpoint]) -> Result<()> {
@@ -309,6 +446,17 @@ impl SecureLink {
     }
 }
 
+pub fn probe_device(addr: &str) -> &'static str {
+    match dial(addr, Duration::from_millis(800)) {
+        Ok(stream) => {
+            drop(stream);
+            "ready"
+        }
+        Err(Error::Msg(msg)) if msg == EMULATOR_CLOSED => "idle",
+        Err(_) => "offline",
+    }
+}
+
 pub fn start_pairing(addr: &str, identity: &Identity, name: &str) -> Result<Pairing> {
     let mut stream = connect(addr)?;
     let mut link = Link::client(identity.clone());
@@ -367,13 +515,37 @@ fn clamp_i16(value: i32) -> i16 {
 }
 
 fn connect(addr: &str) -> Result<TcpStream> {
+    dial(addr, Duration::from_millis(1000))
+}
+
+fn dial(addr: &str, timeout: Duration) -> Result<TcpStream> {
     let mut targets = addr.to_socket_addrs()?;
     let addr = targets.next().ok_or_else(|| Error::Msg("bad address".into()))?;
-    let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(3))?;
+    let stream = TcpStream::connect_timeout(&addr, timeout).map_err(classify_dial)?;
     stream.set_nodelay(true)?;
     stream.set_read_timeout(Some(Duration::from_millis(50)))?;
     stream.set_write_timeout(Some(Duration::from_secs(2)))?;
     Ok(stream)
+}
+
+fn classify_dial(err: std::io::Error) -> Error {
+    if is_refused(&err) {
+        Error::Msg(EMULATOR_CLOSED.into())
+    } else if is_offline(&err) {
+        Error::Msg(DEVICE_UNREACHABLE.into())
+    } else {
+        Error::Io(err)
+    }
+}
+
+fn is_refused(err: &std::io::Error) -> bool {
+    err.kind() == std::io::ErrorKind::ConnectionRefused || err.raw_os_error() == Some(111)
+}
+
+fn is_offline(err: &std::io::Error) -> bool {
+    err.kind() == std::io::ErrorKind::TimedOut
+        || err.kind() == std::io::ErrorKind::AddrNotAvailable
+        || matches!(err.raw_os_error(), Some(110) | Some(101) | Some(113))
 }
 
 fn pump(stream: &mut TcpStream, link: &mut Link, budget: Duration) -> Result<()> {
@@ -496,6 +668,29 @@ mod tests {
     }
 
     #[test]
+    fn parses_recorded_chords() {
+        assert_eq!(parse_hotkey("ctrl+alt+f1"), vec![0xE0, 0xE2, 0x3A]);
+        assert_eq!(parse_hotkey("f12"), vec![0x45]);
+        assert_eq!(parse_hotkey("f13"), vec![0x68]);
+        assert_eq!(parse_hotkey("shift+a"), vec![0xE1, 0x04]);
+        assert_eq!(parse_hotkey("ctrl+1"), vec![0xE0, 0x1E]);
+        assert_eq!(normalize_hotkey("Ctrl+Alt+F1").as_deref(), Some("ctrl+alt+f1"));
+        assert_eq!(normalize_hotkey("control+escape").as_deref(), Some("ctrl+esc"));
+        assert_eq!(normalize_hotkey("escape"), None);
+        assert_eq!(normalize_hotkey("ctrl+nope"), None);
+    }
+
+    #[test]
+    fn either_modifier_side_releases() {
+        let mut fsm = GrabFsm::new(parse_hotkey("ctrl+alt+f1"));
+        fsm.arm();
+        assert_eq!(fsm.on_key(0xE4, true), Decision::Forward);
+        assert_eq!(fsm.on_key(0xE6, true), Decision::Forward);
+        assert_eq!(fsm.on_key(0x3A, true), Decision::Release);
+        assert_eq!(fsm.phase, Phase::Released);
+    }
+
+    #[test]
     fn loopback_pair_and_key() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -520,6 +715,30 @@ mod tests {
     }
 
     #[test]
+    fn closed_port_means_the_emulator_is_not_open() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let addr = format!("127.0.0.1:{port}");
+        assert_eq!(probe_device(&addr), "idle");
+        match start_session(&addr, &Identity::from_priv([9u8; 32]), "desk") {
+            Err(err) => assert_eq!(err.to_string(), EMULATOR_CLOSED),
+            Ok(_) => panic!("closed port opened a session"),
+        }
+    }
+
+    #[test]
+    fn open_port_is_ready_for_capture() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let handle = std::thread::spawn(move || {
+            let _ = listener.accept();
+        });
+        assert_eq!(probe_device(&format!("127.0.0.1:{port}")), "ready");
+        handle.join().unwrap();
+    }
+
+    #[test]
     fn store_roundtrip() {
         let path = std::env::temp_dir().join(format!("kmj-test-{}-{}.json", std::process::id(), random32()[0]));
         let mut store = Store::load(path.clone()).unwrap();
@@ -540,6 +759,16 @@ mod tests {
         assert_eq!(loaded.devices.len(), 1);
         assert_eq!(loaded.devices[0].name, "Desk board");
         assert!(loaded.devices[0].is_paired(&loaded.peers));
+        assert_eq!(loaded.theme, "system");
+
+        let mut loaded = loaded;
+        loaded.remove_peer([1u8; 32]).unwrap();
+        loaded.theme = "light".into();
+        loaded.save().unwrap();
+        let loaded = Store::load(path.clone()).unwrap();
+        assert_eq!(loaded.peers, vec![[2u8; 32]]);
+        assert!(!loaded.devices[0].is_paired(&loaded.peers));
+        assert_eq!(loaded.theme, "light");
 
         let mut loaded = loaded;
         loaded.replace_devices(&[]).unwrap();
