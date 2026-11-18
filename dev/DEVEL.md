@@ -1,4 +1,3 @@
-
 # KMJ - Development
 
 How to build, run, and verify the KMJ firmware and desktop client. See the [protocol reference](proto/PROTOCOL.md) for the wire format and the [changelog](CHANGELOG.md) for notable changes.
@@ -20,6 +19,52 @@ sudo apt-get install pkg-config libx11-dev libevdev-dev libdbus-1-dev \
   libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
   librsvg2-dev patchelf
 ```
+
+### macOS
+
+The Xcode Command Line Tools provide the C/C++ compiler for `pio test -e native` and the SDK the desktop app links against. WebKit ships with macOS. Install the tools, then PlatformIO Core and rustup with Homebrew or MacPorts. `rustup default stable` (or `rustup-init -y`) installs a current stable toolchain, which satisfies the Rust 1.80 requirement.
+
+```bash
+xcode-select --install
+```
+
+#### Homebrew
+
+```bash
+brew install platformio rustup
+export PATH="$(brew --prefix rustup)/bin:$PATH"
+rustup default stable
+```
+
+The `rustup` formula is keg-only, so that `export` has to remain on `PATH`. Add it to the shell startup file, then open a new terminal before running `cargo`.
+
+#### MacPorts
+
+```bash
+sudo port install platformio rustup
+rustup-init -y
+```
+
+`rustup-init` installs the stable toolchain and adds `~/.cargo/bin` to `PATH`. Open a new terminal before running `cargo`.
+
+### Windows
+
+winget installs the Microsoft C++Build Tools, the WebView2 Runtime, rustup, and Python 3.12. The Build Tools package below includes the Desktop development with C++ workload, which supplies the MSVC linker and Windows SDK used to compile the desktop app. WebView2 is already present on Windows 11 and on Windows 10 from version 1803; the install below adds it when it is missing. PlatformIO Core is installed with pip afterwards, which is also how CI installs it. PlatformIO downloads the MinGW toolchain it uses for `pio test -e native` on Windows.
+
+```powershell
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+winget install --id Microsoft.EdgeWebView2Runtime -e
+winget install --id Rustlang.Rustup -e
+winget install --id Python.Python.3.12 -e
+```
+
+Open a new terminal so `cargo`, `python`, and `pip` are on `PATH`, then:
+
+```powershell
+pip install platformio
+```
+
+Keep rustup's MSVC host triple (`x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`). Tauri links the desktop app with that toolchain. Confirm it with `rustup show`.
 
 ## Layout
 
