@@ -1,6 +1,7 @@
-# Development
 
-How to build, run, and verify the firmware and desktop client. See the [protocol reference](proto/PROTOCOL.md) for the wire format and the [changelog](CHANGELOG.md) for notable changes.
+# KMJ - Development
+
+How to build, run, and verify the KMJ firmware and desktop client. See the [protocol reference](proto/PROTOCOL.md) for the wire format and the [changelog](CHANGELOG.md) for notable changes.
 
 Run commands from the repository root unless noted otherwise. The helper scripts require Bash.
 
@@ -10,6 +11,7 @@ Run commands from the repository root unless noted otherwise. The helper scripts
 - Rust 1.80 or newer for the desktop workspace.
 - A C/C++ toolchain for PlatformIO's `native` test environment.
 - Platform-specific [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) when building the desktop app.
+- Tauri CLI 2 for installer builds: `cargo install tauri-cli --version "^2"`. `scripts/build-installers.sh` installs or updates it to the latest stable 2.x when the installed copy is missing or older.
 
 On Debian or Ubuntu, the packages used by CI are:
 
@@ -33,7 +35,7 @@ sudo apt-get install pkg-config libx11-dev libevdev-dev libdbus-1-dev \
 
 ## Helper scripts
 
-All seven scripts under `scripts/` are documented below. Run them from any directory; each resolves the repository root itself.
+The scripts under `scripts/` are documented below. Run them from any directory; each resolves the repository root itself.
 
 | Script | Purpose and defaults |
 | --- | --- |
@@ -41,8 +43,10 @@ All seven scripts under `scripts/` are documented below. Run them from any direc
 | `flash-firmware.sh [kmj\|kmj-debug]` | Enters the ROM bootloader, builds, and uploads. Defaults to `kmj-debug`; accepts PlatformIO upload arguments such as `--upload-port`. |
 | `build-desktop.sh [--release]` | Builds `kmj-app` in debug mode by default. Remaining arguments are passed to `cargo build`. |
 | `run-desktop.sh [--release]` | Builds and runs `kmj-app`. On Linux it also installs the user-level launcher and icons. |
-| `build-installers.sh` | Builds native installers with Tauri CLI 2. Use `--install-cli` if `tauri-cli` is missing; extra arguments go to `cargo tauri build`. |
+| `build-installers.sh` | Builds native installers with Tauri CLI 2. Installs or updates `tauri-cli` to the latest stable 2.x when the installed copy is missing or older. The AppImage build skips linuxdeploy's copyright-file scan unless `--copyright-files` is passed. Extra arguments go to `cargo tauri build`. |
+| `write-notices.sh` | Builds the AppImage with copyright files, then writes `NOTICES` for those system libraries, the Rust crates, and the firmware libraries. |
 | `upgrade-dependencies.sh` | Updates tools and project dependencies, then verifies affected components. Use `--dry-run` or `--help` before applying changes. |
+| `version.sh [x.y.z]` | Prints the shared version. With `x.y.z`, writes that version to the desktop crate, the lockfile, the Tauri config, the firmware, the panel field, and the changelog's current-version sentence. Each part must be an integer with no leading zeros; 0 is allowed. |
 | `release.sh` | Recreates the version tag at HEAD and publishes a GitHub release. Use `--dry-run` first; `--help` lists clean-tree options. |
 
 ## Firmware
@@ -146,13 +150,16 @@ Finishing this backend requires an active event-tap run loop, conversion of `CGE
 
 ### Build installers
 
-`scripts/build-installers.sh` wraps Tauri CLI 2 and builds the host OS installers. It installs the CLI when you pass `--install-cli`. Extra arguments are forwarded to `cargo tauri build`.
+`scripts/build-installers.sh` wraps Tauri CLI 2 and builds the host OS installers. It installs `tauri-cli`, or updates it to the latest stable 2.x, when the installed copy is missing or older. Extra arguments are forwarded to `cargo tauri build`. The AppImage build sets `DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1`, so linuxdeploy does not run `dpkg-query` once per bundled library. Pass `--copyright-files` to keep that scan.
 
 ```bash
 ./scripts/build-installers.sh
-./scripts/build-installers.sh --install-cli
 ./scripts/build-installers.sh --bundles deb
+./scripts/build-installers.sh --copyright-files
+./scripts/write-notices.sh
 ```
+
+`scripts/write-notices.sh` builds the AppImage with `--copyright-files` and `--bundles appimage`, then writes `NOTICES` at the repository root. The file has the AppImage Debian copyright files, the Rust crates from `desktop/Cargo.lock`, and the firmware libraries (PlatformIO libraries, vendored Monocypher, and the Arduino-ESP32 framework). A `-------` line separates each package. That build takes a few minutes. The next default installer build deletes the AppDir and skips the copyright scan again.
 
 Linux needs the WebKitGTK development packages listed in Prerequisites and produces `.deb` / AppImage files. Windows produces an NSIS or MSI bundle. macOS produces a `.dmg`. Bundles land in `desktop/target/release/bundle/`.
 
@@ -192,7 +199,7 @@ Run `./scripts/upgrade-dependencies.sh --help` for component-specific skip flags
 
 `scripts/release.sh` publishes a GitHub release from HEAD. It requires Git, Python 3, an authenticated GitHub CLI, an `origin` remote, and a clean working tree by default.
 
-The versions in `desktop/Cargo.toml`, `desktop/app/src-tauri/tauri.conf.json`, and `firmware/include/pins.hpp` must match as `MAJOR.MINOR.PATCH`. Notes come from `release-notes/RELEASE_NOTES_<version>.md`. If `v<version>` already exists as a tag or GitHub release, the script deletes it and recreates it at HEAD. Publishing the release is the trigger for `.github/workflows/ci.yml`; CI does not run on ordinary pushes or pull requests. The release script itself does not build firmware or the desktop app.
+`./scripts/version.sh` prints the shared `MAJOR.MINOR.PATCH` version. `./scripts/version.sh x.y.z` writes that version to `desktop/Cargo.toml`, `desktop/Cargo.lock`, `desktop/app/src-tauri/tauri.conf.json`, `firmware/include/pins.hpp`, the panel field in `firmware/src/ui/model.hpp`, and the current-version sentence in `dev/CHANGELOG.md`. Each part must be an integer with no leading zeros; 0 is allowed. Notes come from `release-notes/RELEASE_NOTES_<version>.md`. The steps for writing that file and folding `dev/CHANGELOG.md` are in [`release-new-version-prompt.md`](release-new-version-prompt.md). If `v<version>` already exists as a tag or GitHub release, the script deletes it and recreates it at HEAD. Publishing the release is the trigger for `.github/workflows/ci.yml`; CI does not run on ordinary pushes or pull requests. The release script itself does not build firmware or the desktop app.
 
 ```bash
 ./scripts/release.sh --dry-run

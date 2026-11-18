@@ -347,7 +347,9 @@ lv_obj_t* make_config() {
   lv_obj_set_width(g_cfg_info, 464);
   lv_label_set_long_mode(g_cfg_info, LV_LABEL_LONG_CLIP);
 
-  lv_obj_t* build = label(scr, build_timestamp(), &font_plex_14, kDim);
+  char stamp[64];
+  snprintf(stamp, sizeof(stamp), "%s  %s", kFirmwareVersion, build_timestamp());
+  lv_obj_t* build = label(scr, stamp, &font_plex_14, kDim);
   lv_obj_align(build, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
   return scr;
 }

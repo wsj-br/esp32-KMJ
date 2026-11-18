@@ -54,6 +54,6 @@ Use the host tests first. They need no board. Add a Unity test in `firmware/test
 
 - Add a changelog entry at the top of `## [Unreleased]` in `dev/CHANGELOG.md`: `- **Added|Changed|Fixed|Removed**: <scope> — <description>`.
 - Docs are plain and factual. Put development notes in `dev/DEVEL.md`, and keep `README.md` to setup and use.
-- Versions in `desktop/Cargo.toml`, `desktop/app/src-tauri/tauri.conf.json` and `firmware/include/pins.hpp` must match (`MAJOR.MINOR.PATCH`). Release notes go in `release-notes/RELEASE_NOTES_<version>.md`.
+- Versions in `desktop/Cargo.toml`, `desktop/app/src-tauri/tauri.conf.json` and `firmware/include/pins.hpp` must match (`MAJOR.MINOR.PATCH`). `scripts/version.sh` prints that version, or sets it everywhere it is recorded. Release notes go in `release-notes/RELEASE_NOTES_<version>.md`.
 - Do not run `scripts/release.sh` without `--dry-run` unless the user asks. It deletes and recreates the version tag and publishes a GitHub release.
 - Helper scripts under `scripts/` are Bash. Reuse them instead of inventing new build commands.

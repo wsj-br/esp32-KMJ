@@ -11,6 +11,16 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 
 ## [Unreleased]
 
+- **Added**: desktop — the window footer shows the app version and build timestamp, right aligned, in small muted text.
+- **Changed**: firmware — the configuration screen shows the firmware version before the build timestamp.
+- **Added**: scripts — `scripts/version.sh` prints the shared version, or sets it to an `x.y.z` value.
+- **Added**: docs — `dev/release-new-version-prompt.md` is the prompt for writing `release-notes/RELEASE_NOTES_<version>.md` and folding the changelog.
+- **Added**: license — MIT license, copyright Waldemar Scudeller Jr.
+- **Added**: scripts — `write-notices.sh` builds the AppImage with copyright files, then writes `NOTICES` for those system libraries, the Rust crates, and the firmware libraries.
+- **Changed**: scripts — `build-installers.sh` skips linuxdeploy's copyright-file scan when building an AppImage. Pass `--copyright-files` to keep it.
+- **Changed**: docs — prerequisites list Tauri CLI 2 for installer builds.
+- **Changed**: scripts — `build-installers.sh` installs or updates `tauri-cli` to the latest stable 2.x when the installed copy is missing or older.
+- **Fixed**: scripts — `build-installers.sh` no longer passes `--manifest-path` to `cargo tauri build`. Tauri CLI 2 rejects that flag and finds `desktop/app/src-tauri` from the repo root on its own.
 - **Added**: scripts — `scripts/build-installers.sh` builds the host OS installers with Tauri CLI 2 and prints the bundle paths.
 - **Changed**: docs — development notes live in `dev/DEVEL.md`. The README keeps how to set up and use the board and the desktop app. The protocol is `dev/proto/PROTOCOL.md`.
 - **Added**: release — `scripts/release.sh` publishes a GitHub release from the shared version in the desktop crate, the Tauri config, and the firmware. CI runs when that release is published.

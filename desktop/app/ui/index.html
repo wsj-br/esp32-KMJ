@@ -90,7 +90,7 @@
     body {
       font-family: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
       display: grid;
-      grid-template-rows: 56px 1fr;
+      grid-template-rows: 56px 1fr auto;
       background-image: radial-gradient(circle at 76% 12%, var(--glow), transparent 30%);
     }
 
@@ -562,6 +562,15 @@
 
     .pair-dismiss[hidden] { display: none; }
 
+    footer {
+      min-height: 28px;
+      padding: 4px 22px 8px;
+      color: var(--dim);
+      font-size: 11px;
+      line-height: 1.2;
+      text-align: right;
+    }
+
     @media (max-width: 720px) {
       main { grid-template-columns: 220px minmax(0, 1fr); }
       section { padding: 18px; }
@@ -662,6 +671,7 @@
       </div>
     </section>
   </main>
+  <footer id="app-version"></footer>
   <div class="pair-modal" id="pair-modal" aria-hidden="true">
     <div class="pair-card" role="dialog" aria-modal="true" aria-labelledby="pair-title">
       <p class="eyebrow">Secure pairing</p>
@@ -1502,6 +1512,12 @@
       });
     }, 1500);
     updateControls();
+    Promise.all([
+      window.__TAURI__.app.getVersion(),
+      invoke("build_stamp"),
+    ]).then(([version, built]) => {
+      $("app-version").textContent = `${version}  ${built}`;
+    }).catch(() => {});
     refresh().catch((error) => {
       $("note").textContent = errText(error);
     });

@@ -70,6 +70,11 @@ fn store_path() -> PathBuf {
 }
 
 #[tauri::command]
+fn build_stamp() -> &'static str {
+    env!("KMJ_BUILD_TIMESTAMP")
+}
+
+#[tauri::command]
 fn status(state: State<AppState>) -> Status {
     let store = state.0.store.lock().expect("store");
     let code = state.0.pairing.lock().expect("pair").as_ref().map(|p| p.code.clone()).unwrap_or_default();
@@ -391,6 +396,7 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState(shared))
         .invoke_handler(tauri::generate_handler![
+            build_stamp,
             status,
             scan,
             pair,
