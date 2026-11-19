@@ -192,14 +192,18 @@ verify_firmware() {
 PY_FILE="$(mktemp)"
 trap 'rm -f "$PY_FILE"' EXIT
 cat >"$PY_FILE" <<'PY'
+import http.client
 import json
 import os
 import re
 import shutil
+import socket
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -213,29 +217,102 @@ HEADERS = {
     "User-Agent": "esp32-KMJ-upgrade-dependencies",
     "Accept": "application/vnd.github+json, application/json",
 }
+# IPv6 is disabled on this machine. urllib follows getaddrinfo order and
+# applies the whole request timeout to every address, so an AAAA record
+# stalls each lookup for minutes. Resolve and connect over IPv4 only.
+CONNECT_TIMEOUT = 5
+CRATES_INTERVAL = 1.1
+LAST_CRATES_REQUEST = 0.0
 
 
 def fail(message):
     raise SystemExit(message)
 
 
-def get_json(url):
-    request = urllib.request.Request(url, headers=HEADERS)
+def connect_address(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+    host, port = address
+    infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    connect_timeout = CONNECT_TIMEOUT
+    if isinstance(timeout, (int, float)):
+        connect_timeout = min(connect_timeout, timeout)
+    errors = []
+    for family, socktype, proto, _canon, sockaddr in infos:
+        sock = socket.socket(family, socktype, proto)
+        try:
+            if source_address:
+                sock.bind(source_address)
+            sock.settimeout(connect_timeout)
+            sock.connect(sockaddr)
+        except OSError as exc:
+            errors.append(exc)
+            sock.close()
+            continue
+        sock.settimeout(timeout if isinstance(timeout, (int, float)) else None)
+        return sock
+    detail = errors[-1] if errors else "no IPv4 addresses"
+    raise TimeoutError(f"Could not connect to {host}:{port}: {detail}")
+
+
+class FallbackHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # HTTPConnection.__init__ stores socket.create_connection on the
+        # instance, which hides a method of the same name.
+        self._create_connection = connect_address
+
+
+class FallbackHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(FallbackHTTPSConnection, req, context=self._context)
+
+
+OPENER = urllib.request.build_opener(FallbackHTTPSHandler())
+
+
+def pace_crates(url):
+    global LAST_CRATES_REQUEST
+    if (urllib.parse.urlsplit(url).hostname or "") != "crates.io":
+        return
+    delay = LAST_CRATES_REQUEST + CRATES_INTERVAL - time.monotonic()
+    if delay > 0:
+        time.sleep(delay)
+    LAST_CRATES_REQUEST = time.monotonic()
+
+
+def retry_pause(exc):
+    raw = exc.headers.get("Retry-After") if exc.headers is not None else None
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")[:300]
-        fail(f"GET {url} failed: HTTP {exc.code} {detail}")
+        pause = float(raw)
+    except (TypeError, ValueError):
+        pause = 2.0
+    return min(max(pause, 1.0), 30.0)
+
+
+def open_url(url, timeout):
+    for attempt in range(4):
+        pace_crates(url)
+        request = urllib.request.Request(url, headers=HEADERS)
+        try:
+            return OPENER.open(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:300]
+            if exc.code == 429 and attempt < 3:
+                time.sleep(retry_pause(exc))
+                continue
+            fail(f"GET {url} failed: HTTP {exc.code} {detail}")
+        except urllib.error.URLError as exc:
+            fail(f"GET {url} failed: {exc.reason}")
+    fail(f"GET {url} failed: HTTP 429")
+
+
+def get_json(url):
+    with open_url(url, 60) as response:
+        return json.load(response)
 
 
 def download(url, dest):
-    request = urllib.request.Request(url, headers=HEADERS)
-    try:
-        with urllib.request.urlopen(request, timeout=180) as response, dest.open("wb") as handle:
-            shutil.copyfileobj(response, handle)
-    except urllib.error.HTTPError as exc:
-        fail(f"GET {url} failed: HTTP {exc.code}")
+    with open_url(url, 180) as response, dest.open("wb") as handle:
+        shutil.copyfileobj(response, handle)
 
 
 def version_key(value):
@@ -373,6 +450,7 @@ def upgrade_cargo_file(path):
 def upgrade_desktop():
     if skip_desktop:
         return
+    print("Checking Cargo requirements...", flush=True)
     manifests = [
         path
         for path in (root / "desktop").rglob("Cargo.toml")
@@ -497,12 +575,10 @@ def upgrade_monocypher():
 
 
 def tag_exists(repository, tag):
-    request = urllib.request.Request(
-        f"https://api.github.com/repos/{repository}/git/ref/tags/{tag}",
-        headers=HEADERS,
-    )
+    url = f"https://api.github.com/repos/{repository}/git/ref/tags/{tag}"
+    request = urllib.request.Request(url, headers=HEADERS)
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with OPENER.open(request, timeout=60) as response:
             json.load(response)
         return True
     except urllib.error.HTTPError as exc:
@@ -510,6 +586,8 @@ def tag_exists(repository, tag):
             return False
         detail = exc.read().decode("utf-8", "replace")[:300]
         fail(f"GET {repository} tag {tag} failed: HTTP {exc.code} {detail}")
+    except urllib.error.URLError as exc:
+        fail(f"GET {repository} tag {tag} failed: {exc.reason}")
 
 
 def action_ref(repository, current):
@@ -563,7 +641,7 @@ upgrade_actions()
 PY
 
 run_upgrade_py() {
-  python3 "$PY_FILE" "$ROOT"
+  PYTHONUNBUFFERED=1 python3 "$PY_FILE" "$ROOT"
 }
 
 if [[ "$SKIP_TOOLS" == false ]]; then

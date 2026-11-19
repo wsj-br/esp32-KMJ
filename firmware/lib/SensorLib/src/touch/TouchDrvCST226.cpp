@@ -66,7 +66,9 @@ const TouchPoints &TouchDrvCST226::getTouchPoints()
 
         if (buffer[6] != 0xAB)return _touchPoints; // Return zero points
         if (buffer[0] == 0xAB)return _touchPoints; // Return zero points
-        if (buffer[0] == 0x00)return _touchPoints; // Return zero points
+        // Byte 0 is the first finger's id and event, so 0x00 is not an empty
+        // frame. A zero point count is acknowledged below. Returning here skips
+        // that write and the CST226 then reports no further contact.
         if (buffer[5] == 0x80)return _touchPoints; // Return zero points
 
         uint8_t numPoints = buffer[5] & 0x7F; // Get number of touch points (lower 7 bits)

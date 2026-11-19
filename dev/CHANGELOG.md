@@ -11,6 +11,8 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 
 ## [Unreleased]
 
+- **Fixed**: scripts — dependency upgrade connects over IPv4, so a disabled IPv6 interface cannot stall the registry lookups.
+- **Fixed**: firmware — touch setup passes the reset pin to the CST226 driver, so the controller is hardware-reset before its check code is read. Without that pin the driver issued a software reset and rejected the chip at 0x5A. An idle status byte of 0x00 is acknowledged instead of being discarded, so later taps are reported.
 - **Fixed**: capture — macOS releases a stuck Command or Option before the next letter, and forwards key-up events that Quartz marks as repeats. The board sends each key transition to USB as it arrives, and packs the keyboard report so a released key cannot hide the ones still held.
 - **Changed**: desktop — the version and build timestamp in the window footer use 8px type.
 - **Changed**: desktop — a board that is on the network but not accepting the KM port asks the user to select KM Emulator, instead of saying the device is not reachable.
