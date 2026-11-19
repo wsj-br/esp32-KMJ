@@ -2,7 +2,7 @@
 
 use std::io;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaptureEvent {
     Key { usage: u8, down: bool },
     Mouse { dx: i32, dy: i32 },
@@ -33,8 +33,13 @@ pub fn open() -> io::Result<Box<dyn InputCapture>> {
         return Ok(Box::new(macos::MacGrab::new()));
     }
     #[allow(unreachable_code)]
-    Err(io::Error::new(io::ErrorKind::Unsupported, "capture is not built for this OS"))
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "capture is not built for this OS",
+    ))
 }
+
+mod mac_events;
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -49,8 +54,8 @@ mod windows;
 pub fn linux_key_to_hid(code: u16) -> Option<u8> {
     // Linux input event codes (linux/input-event-codes.h) to HID keyboard usages.
     Some(match code {
-        1 => 0x29,  // ESC
-        2 => 0x1E,  // 1
+        1 => 0x29, // ESC
+        2 => 0x1E, // 1
         3 => 0x1F,
         4 => 0x20,
         5 => 0x21,
@@ -102,15 +107,15 @@ pub fn linux_key_to_hid(code: u16) -> Option<u8> {
         51 => 0x36,
         52 => 0x37,
         53 => 0x38,
-        54 => 0xE5, // right shift
-        55 => 0x55, // keypad *
-        56 => 0xE2, // left alt
-        57 => 0x2C, // space
-        58 => 0x39, // caps
+        54 => 0xE5,                          // right shift
+        55 => 0x55,                          // keypad *
+        56 => 0xE2,                          // left alt
+        57 => 0x2C,                          // space
+        58 => 0x39,                          // caps
         59..=68 => 0x3A + (code as u8 - 59), // F1-F10
-        69 => 0x53, // num lock
-        70 => 0x47, // scroll lock
-        71 => 0x5F, // keypad 7
+        69 => 0x53,                          // num lock
+        70 => 0x47,                          // scroll lock
+        71 => 0x5F,                          // keypad 7
         72 => 0x60,
         73 => 0x61,
         74 => 0x56, // keypad -
@@ -121,34 +126,34 @@ pub fn linux_key_to_hid(code: u16) -> Option<u8> {
         79 => 0x59, // keypad 1
         80 => 0x5A,
         81 => 0x5B,
-        82 => 0x62, // keypad 0
-        83 => 0x63, // keypad .
-        86 => 0x64, // non-US \ |
-        87 => 0x44, // F11
-        88 => 0x45, // F12
-        96 => 0x58, // keypad enter
-        97 => 0xE4, // right ctrl
-        98 => 0x54, // keypad /
-        99 => 0x46, // print screen
-        100 => 0xE6, // right alt
-        102 => 0x4A, // home
-        103 => 0x52, // up
-        104 => 0x4B, // page up
-        105 => 0x50, // left
-        106 => 0x4F, // right
-        107 => 0x4D, // end
-        108 => 0x51, // down
-        109 => 0x4E, // page down
-        110 => 0x49, // insert
-        111 => 0x4C, // delete
-        113 => 0x7F, // mute
-        114 => 0x81, // volume down
-        115 => 0x80, // volume up
-        117 => 0x67, // keypad =
-        119 => 0x48, // pause
-        125 => 0xE3, // left meta
-        126 => 0xE7, // right meta
-        127 | 139 => 0x65, // compose / menu
+        82 => 0x62,                             // keypad 0
+        83 => 0x63,                             // keypad .
+        86 => 0x64,                             // non-US \ |
+        87 => 0x44,                             // F11
+        88 => 0x45,                             // F12
+        96 => 0x58,                             // keypad enter
+        97 => 0xE4,                             // right ctrl
+        98 => 0x54,                             // keypad /
+        99 => 0x46,                             // print screen
+        100 => 0xE6,                            // right alt
+        102 => 0x4A,                            // home
+        103 => 0x52,                            // up
+        104 => 0x4B,                            // page up
+        105 => 0x50,                            // left
+        106 => 0x4F,                            // right
+        107 => 0x4D,                            // end
+        108 => 0x51,                            // down
+        109 => 0x4E,                            // page down
+        110 => 0x49,                            // insert
+        111 => 0x4C,                            // delete
+        113 => 0x7F,                            // mute
+        114 => 0x81,                            // volume down
+        115 => 0x80,                            // volume up
+        117 => 0x67,                            // keypad =
+        119 => 0x48,                            // pause
+        125 => 0xE3,                            // left meta
+        126 => 0xE7,                            // right meta
+        127 | 139 => 0x65,                      // compose / menu
         183..=194 => 0x68 + (code as u8 - 183), // F13-F24
         _ => return None,
     })

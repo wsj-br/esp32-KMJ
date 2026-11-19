@@ -78,7 +78,7 @@ struct Model {
   bool setup_fail = false;
   char setup_note[48] = {};
   char device_name[20] = "KMJ";
-  char version[12] = "0.1.0";
+  char version[12] = "0.1.1";
   uint32_t heap_free = 0;
   uint32_t psram_free = 0;
   uint32_t uptime_s = 0;

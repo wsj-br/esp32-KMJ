@@ -27,7 +27,7 @@ Fix any failures. `./scripts/build-desktop.sh` is the debug app build. The relea
        - **Fixes** — Bug fixes.
        - **Documentation** — Links to README and relevant `dev/` docs (see below).
      - Smaller releases may omit empty `<details>` blocks (e.g. no separate Improvements) but keep the same overall shape.
-   - State capture status plainly when this release touches it: Linux capture is complete, Windows still needs release validation, and the macOS capture backend is incomplete. Do not describe macOS capture as working.
+   - State capture status plainly when this release touches it: Linux capture is complete. Windows and macOS capture are implemented; a person on that OS still has to confirm suppression, forwarding, and the release chord. Compilation alone is not that confirmation.
    - Do not weaken or misstate the safety properties: the release chord (Ctrl+Alt+Esc by default) is never forwarded, and the firmware releases all keys and buttons within 3 seconds of losing the desktop.
    - `## License` — KMJ is under the **MIT License**; copyright line and link to [`LICENSE`](https://github.com/wsj-br/esp32-KMJ/blob/main/LICENSE) as in the example.
      - Under License, include a collapsible **Disclaimer** `<details>` with the product-names disclaimer in the example, plus a link to [`NOTICES`](https://github.com/wsj-br/esp32-KMJ/blob/main/NOTICES).

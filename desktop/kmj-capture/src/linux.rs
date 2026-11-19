@@ -25,14 +25,27 @@ impl X11Grab {
     pub fn new() -> io::Result<Self> {
         let (conn, screen) = RustConnection::connect(None).map_err(io_err)?;
         let root = conn.setup().roots[screen].root;
-        Ok(Self { conn, root, last_x: 0, last_y: 0, have_pos: false, buttons: 0 })
+        Ok(Self {
+            conn,
+            root,
+            last_x: 0,
+            last_y: 0,
+            have_pos: false,
+            buttons: 0,
+        })
     }
 }
 
 impl InputCapture for X11Grab {
     fn start(&mut self) -> io::Result<()> {
         self.conn
-            .grab_keyboard(false, self.root, x11rb::CURRENT_TIME, GrabMode::ASYNC, GrabMode::ASYNC)
+            .grab_keyboard(
+                false,
+                self.root,
+                x11rb::CURRENT_TIME,
+                GrabMode::ASYNC,
+                GrabMode::ASYNC,
+            )
             .map_err(io_err)?
             .reply()
             .map_err(io_err)?;
@@ -80,7 +93,10 @@ impl InputCapture for X11Grab {
                         let dx = ev.event_x - self.last_x;
                         let dy = ev.event_y - self.last_y;
                         if dx != 0 || dy != 0 {
-                            out.push(CaptureEvent::Mouse { dx: dx as i32, dy: dy as i32 });
+                            out.push(CaptureEvent::Mouse {
+                                dx: dx as i32,
+                                dy: dy as i32,
+                            });
                         }
                     }
                     self.last_x = ev.event_x;
@@ -142,7 +158,10 @@ impl EvdevGrab {
             if is_board_hid(&device) {
                 continue;
             }
-            let keys = device.supported_keys().map(|k| k.contains(KeyCode::KEY_A)).unwrap_or(false);
+            let keys = device
+                .supported_keys()
+                .map(|k| k.contains(KeyCode::KEY_A))
+                .unwrap_or(false);
             let rel = device
                 .supported_relative_axes()
                 .map(|a| a.contains(RelativeAxisCode::REL_X))
@@ -161,7 +180,10 @@ impl EvdevGrab {
                 "no input devices could be grabbed; add the user to the input group",
             ));
         }
-        Ok(Self { devices, buttons: 0 })
+        Ok(Self {
+            devices,
+            buttons: 0,
+        })
     }
 }
 
@@ -198,7 +220,10 @@ impl InputCapture for EvdevGrab {
 /// Read keyboard keys until `stop` is set. Keyboard-only devices are grabbed so a
 /// compositor shortcut such as GNOME's Ctrl+Alt+Escape (cycle panels) cannot swallow
 /// the key before it is recorded. The pointer is left alone.
-pub fn spawn_chord_watch(stop: Arc<AtomicBool>, emit: impl Fn(u8, bool) + Send + 'static) -> io::Result<()> {
+pub fn spawn_chord_watch(
+    stop: Arc<AtomicBool>,
+    emit: impl Fn(u8, bool) + Send + 'static,
+) -> io::Result<()> {
     let mut devices = open_chord_keyboards()?;
     std::thread::Builder::new()
         .name("kmj-chord".into())
@@ -314,8 +339,14 @@ fn push_evdev(ev: evdev::InputEvent, buttons: &mut u8, out: &mut Vec<CaptureEven
         EventSummary::RelativeAxis(_, axis, value) => match axis {
             RelativeAxisCode::REL_X => out.push(CaptureEvent::Mouse { dx: value, dy: 0 }),
             RelativeAxisCode::REL_Y => out.push(CaptureEvent::Mouse { dx: 0, dy: value }),
-            RelativeAxisCode::REL_WHEEL => out.push(CaptureEvent::Wheel { v: value as i8, h: 0 }),
-            RelativeAxisCode::REL_HWHEEL => out.push(CaptureEvent::Wheel { v: 0, h: value as i8 }),
+            RelativeAxisCode::REL_WHEEL => out.push(CaptureEvent::Wheel {
+                v: value as i8,
+                h: 0,
+            }),
+            RelativeAxisCode::REL_HWHEEL => out.push(CaptureEvent::Wheel {
+                v: 0,
+                h: value as i8,
+            }),
             _ => {}
         },
         _ => {}

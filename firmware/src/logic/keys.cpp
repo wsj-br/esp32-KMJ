@@ -42,6 +42,16 @@ bool KeyReport6::set(uint8_t usage, bool down) {
       key = 0;
     }
   }
+  // Hosts stop at the first empty slot. A release in the middle would hide
+  // every key after it, so the array stays packed.
+  uint8_t packed[6] = {};
+  uint8_t count = 0;
+  for (uint8_t key : keys) {
+    if (key != 0) {
+      packed[count++] = key;
+    }
+  }
+  memcpy(keys, packed, sizeof(keys));
   return true;
 }
 

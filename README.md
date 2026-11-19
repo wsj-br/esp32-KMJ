@@ -35,7 +35,7 @@ The red-circle home key wakes the display, returns to the home screen, or turns 
 
 - **Linux/Wayland:** capture requires read/write access to `/dev/input/event*`. See the [Linux instructions](dev/DEVEL.md#linux).
 - **Windows:** no additional capture permission is normally required, but the backend still needs release validation.
-- **macOS:** the capture backend is incomplete; it will require Accessibility and Input Monitoring permission.
+- **macOS:** grant Accessibility and Input Monitoring to the KMJ binary, then quit and reopen the app. A debug binary and an installed app need separate grants. See the [macOS notes](dev/DEVEL.md#macos).
 - **Linux/X11:** no additional capture permission is normally required.
 
 Build instructions, platform details, hardware checks, and release steps are in the [development guide](dev/DEVEL.md). The wire format is documented in the [protocol reference](dev/proto/PROTOCOL.md).

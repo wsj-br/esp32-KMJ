@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Use conventional types (**Added**, **Changed**, **Fixed**, **Removed**), a short **scope** (subsystem or UI area), and a clear description.
 
-Add new entries at the top of `## [Unreleased]`. When a version is published, move those entries to `## [x.y.z] - YYYY-MM-DD`. The current version is `0.1.0` and has not been published.
+Add new entries at the top of `## [Unreleased]`. When a version is published, move those entries to `## [x.y.z] - YYYY-MM-DD`. The current version is `0.1.1` and has not been published.
 
 ## [Unreleased]
 
+- **Fixed**: capture — macOS releases a stuck Command or Option before the next letter, and forwards key-up events that Quartz marks as repeats. The board sends each key transition to USB as it arrives, and packs the keyboard report so a released key cannot hide the ones still held.
+- **Changed**: desktop — the version and build timestamp in the window footer use 8px type.
+- **Changed**: desktop — a board that is on the network but not accepting the KM port asks the user to select KM Emulator, instead of saying the device is not reachable.
+- **Fixed**: capture — macOS runs a suppressing HID event tap on a run-loop thread and forwards keyboard, pointer, button, and scroll events.
+- **Fixed**: desktop — the chord-key event payload is compiled only on Linux, so other hosts no longer warn that it is never constructed.
+- **Changed**: desktop — the device list shows the IP address without the port.
 - **Changed**: docs — QEMU's default user-mode NIC does not carry the mDNS multicast that Scan uses, and it has no Bluetooth controller for Scan networks.
 - **Fixed**: capture — the macOS grab is `Send`, so `kmj-capture` builds. The event-tap pointer is owned by `MacGrab` and only used through `&mut self`.
 - **Fixed**: scripts — `run-desktop.sh` and `build-desktop.sh` no longer fail on macOS Bash 3.2 when launched with no extra Cargo arguments.
@@ -44,6 +50,6 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 - **Changed**: firmware — the panel shows a build stamp and the device name. The jiggler countdown freezes the time remaining when the function stops.
 - **Changed**: desktop — pairing and configuration screens, including finding the board and sending a network.
 - **Added**: firmware — KM Emulator, Mouse Jiggler, and Configuration on the LilyGO T-Display-S3 Pro, injecting a USB keyboard and mouse into the computer the board is plugged into.
-- **Added**: desktop — Tauri client that discovers `_kmj._tcp` devices, pairs, and builds on Linux, Windows, and macOS. Linux capture is complete, Windows still needs release validation, and macOS capture remains incomplete. The release chord is Ctrl+Alt+Esc and is never forwarded.
+- **Added**: desktop — Tauri client that discovers `_kmj._tcp` devices, pairs, and builds on Linux, Windows, and macOS. Linux capture is complete. Windows and macOS capture are implemented and still need a check on that OS. The release chord is Ctrl+Alt+Esc and is never forwarded.
 - **Added**: protocol — version 1 handshake and encrypted session, recorded in `dev/proto/PROTOCOL.md`, with locked vectors in `dev/proto/vectors/handshake.txt`.
 - **Added**: scripts — `build-firmware.sh`, `flash-firmware.sh`, `build-desktop.sh`, and `run-desktop.sh`. Host logic tests run with `pio test -e native`.

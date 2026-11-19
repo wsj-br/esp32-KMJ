@@ -563,10 +563,10 @@
     .pair-dismiss[hidden] { display: none; }
 
     footer {
-      min-height: 28px;
-      padding: 4px 22px 8px;
+      min-height: 16px;
+      padding: 2px 22px 6px;
       color: var(--dim);
-      font-size: 11px;
+      font-size: 8px;
       line-height: 1.2;
       text-align: right;
     }
@@ -688,7 +688,7 @@
     const { invoke } = window.__TAURI__.core;
     const $ = (id) => document.getElementById(id);
     const CONNECTED_NOTE = "Connected. Click on Capture to start sending keystrokes and mouse movements to the device.";
-    const IDLE_NOTE = "The device is on. Select the KM Emulator function on the device to capture.";
+    const IDLE_NOTE = "Select the KM Emulator function on the device to send keystrokes and mouse movements to the connected computer";
     let devices = [];
     let selected = null;
     let connectedDeviceId = null;
@@ -796,7 +796,7 @@
         name.textContent = device.name;
         badge.className = `badge${device.paired ? " paired" : ""}`;
         badge.textContent = device.paired ? "Paired" : "Not paired";
-        address.textContent = `${device.host}:${device.port}`;
+        address.textContent = device.host;
         top.append(name, badge);
         button.append(top, address);
         button.onclick = () => {
@@ -915,7 +915,7 @@
       }
       if (presence !== "ready") {
         deviceState = "offline";
-        paintSelection("The device is not reachable.");
+        paintSelection(IDLE_NOTE);
         return;
       }
       pairStartedFor = device.id;

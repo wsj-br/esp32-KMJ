@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 pub use kmj_capture::open as open_capture;
 pub use kmj_proto::Error as ProtoError;
 
-/// Shown when the board is on the network but KM Emulator is not the active function.
-pub const EMULATOR_CLOSED: &str =
-    "The device is on. Select the KM Emulator function on the device to capture.";
-pub const DEVICE_UNREACHABLE: &str = "The device is not reachable.";
+/// Shown when a discovered board does not accept the KM port. The listener runs
+/// only while KM Emulator is the active function.
+pub const EMULATOR_CLOSED: &str = "Select the KM Emulator function on the device to send keystrokes and mouse movements to the connected computer";
+pub const DEVICE_UNREACHABLE: &str = EMULATOR_CLOSED;
 
 pub mod improv;
 

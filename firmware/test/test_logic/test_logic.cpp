@@ -362,7 +362,11 @@ void test_keys_and_mouse_chunks() {
   TEST_ASSERT_TRUE(report.set(0x09, true));
   TEST_ASSERT_FALSE(report.set(0x0A, true));
   TEST_ASSERT_TRUE(report.set(0x04, false));
+  TEST_ASSERT_EQUAL_UINT8(0x05, report.keys[0]);
+  TEST_ASSERT_EQUAL_UINT8(0x09, report.keys[4]);
+  TEST_ASSERT_EQUAL_UINT8(0, report.keys[5]);
   TEST_ASSERT_TRUE(report.set(0x0A, true));
+  TEST_ASSERT_EQUAL_UINT8(0x0A, report.keys[5]);
   report.clear();
   TEST_ASSERT_EQUAL_UINT8(0, report.mods);
 

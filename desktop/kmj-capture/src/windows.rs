@@ -69,11 +69,18 @@ fn remove_hooks() {
 }
 
 fn drain_events() -> Vec<CaptureEvent> {
-    QUEUE.lock().unwrap_or_else(|err| err.into_inner()).drain(..).collect()
+    QUEUE
+        .lock()
+        .unwrap_or_else(|err| err.into_inner())
+        .drain(..)
+        .collect()
 }
 
 fn push_event(event: CaptureEvent) {
-    QUEUE.lock().unwrap_or_else(|err| err.into_inner()).push(event);
+    QUEUE
+        .lock()
+        .unwrap_or_else(|err| err.into_inner())
+        .push(event);
 }
 
 fn hid_from_vk(vk: u32) -> Option<u8> {
@@ -128,7 +135,11 @@ fn hid_from_vk(vk: u32) -> Option<u8> {
         0xDD => 0x30, // ]
         0xDE => 0x34, // '
         code if (0x30..=0x39).contains(&code) => {
-            if code == 0x30 { 0x27 } else { 0x1E + (code as u8 - 0x31) }
+            if code == 0x30 {
+                0x27
+            } else {
+                0x1E + (code as u8 - 0x31)
+            }
         }
         code if (0x41..=0x5A).contains(&code) => 0x04 + (code as u8 - 0x41),
         code if (0x61..=0x69).contains(&code) => 0x59 + (code as u8 - 0x61), // numpad 1-9
@@ -211,12 +222,19 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: usize, lparam: isize) ->
                 };
                 let down = matches!(wparam as u32, 0x201 | 0x204 | 0x207);
                 let mut buttons = BUTTONS.lock().unwrap_or_else(|err| err.into_inner());
-                if down { *buttons |= bit; } else { *buttons &= !bit; }
+                if down {
+                    *buttons |= bit;
+                } else {
+                    *buttons &= !bit;
+                }
                 push_event(CaptureEvent::Buttons { mask: *buttons });
             }
             0x20A => {
                 let wheel = (info.data >> 16) as i16;
-                push_event(CaptureEvent::Wheel { v: (wheel / 120) as i8, h: 0 });
+                push_event(CaptureEvent::Wheel {
+                    v: (wheel / 120) as i8,
+                    h: 0,
+                });
             }
             _ => {}
         }

@@ -2071,7 +2071,7 @@ dependencies = [
 
 [[package]]
 name = "kmj-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "btleplug",
  "chrono",
@@ -2089,7 +2089,7 @@ dependencies = [
 
 [[package]]
 name = "kmj-capture"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "evdev",
  "libc",
@@ -2099,7 +2099,7 @@ dependencies = [
 
 [[package]]
 name = "kmj-client"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "kmj-capture",
  "kmj-proto",
@@ -2111,7 +2111,7 @@ dependencies = [
 
 [[package]]
 name = "kmj-proto"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "blake2",
  "chacha20poly1305",

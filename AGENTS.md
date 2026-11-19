@@ -39,7 +39,7 @@ Use the host tests first. They need no board. Add a Unity test in `firmware/test
 
 ## Desktop (`desktop/`)
 
-- Crates: `kmj-proto` (handshake and framing), `kmj-capture` (OS input grab: Linux X11 and evdev, Windows hooks, macOS incomplete), `kmj-client` (discovery, pairing, capture state machine), `app` (Tauri window and commands; UI in `app/ui`).
+- Crates: `kmj-proto` (handshake and framing), `kmj-capture` (OS input grab: Linux X11 and evdev, Windows hooks, macOS event tap), `kmj-client` (discovery, pairing, capture state machine), `app` (Tauri window and commands; UI in `app/ui`).
 - `kmj-app` is excluded from `cargo test`. It needs Tauri system libraries (listed in `dev/DEVEL.md`).
 - The release chord (Ctrl+Alt+Esc by default) must never be forwarded to the board. The client sends `RELEASE_ALL` before dropping the grab.
 - Capture changes can compile on every OS without being correct. Only a person on that OS can verify them. Say so.

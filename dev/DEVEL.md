@@ -228,9 +228,11 @@ The backend installs `WH_KEYBOARD_LL` and `WH_MOUSE_LL` and returns a non-zero v
 
 #### macOS
 
-The macOS capture backend is not yet complete. It creates a suppressing HID event tap, but it does not attach that tap to a run loop or enqueue keyboard and pointer events for forwarding. CI currently verifies compilation only.
+The backend creates a suppressing HID event tap (`kCGHIDEventTap`, `kCGEventTapOptionDefault`) and runs it on a dedicated thread. The callback converts keyboard, modifier, pointer, button, and scroll events into `CaptureEvent` values and returns NULL so the source desktop does not receive them. `poll` drains that queue. Stopping the grab disables the tap, stops the run loop, and releases the port.
 
-Finishing this backend requires an active event-tap run loop, conversion of `CGEvent` values to `CaptureEvent`, and clean teardown. The app will also require Accessibility and Input Monitoring permission; quit and reopen KMJ after granting them.
+Grant Accessibility and Input Monitoring to the KMJ binary that you launch. Quit KMJ and open it again after changing either permission. A `cargo run` binary and an installed `.app` are different programs, so each one needs its own grant. `CGEventTapCreate` fails without them, and Capture shows that error.
+
+CI checks that this backend compiles. Confirm on a Mac that keys, pointer motion, buttons, and scrolling are suppressed locally and arrive on the target, and that the release chord ends the grab.
 
 ### Build installers
 

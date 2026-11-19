@@ -74,10 +74,28 @@ bool hid_mounted() { return tud_mounted(); }
 uint8_t hid_leds() { return g_leds; }
 uint32_t hid_tx() { return g_tx; }
 
-void hid_key(uint8_t usage, bool down) {
-  if (g_keys.set(usage, down)) {
-    g_key_dirty = true;
+bool write_keys() {
+  if (!g_key_dirty || !bus_ready(0)) {
+    return false;
   }
+  KeyReport report{};
+  report.modifiers = g_keys.mods;
+  memcpy(report.keys, g_keys.keys, 6);
+  g_keyboard.sendReport(&report);
+  g_key_dirty = false;
+  g_tx++;
+  return true;
+}
+
+void hid_key(uint8_t usage, bool down) {
+  if (!g_keys.set(usage, down)) {
+    return;
+  }
+  // km_poll applies every key in the socket buffer before the periodic HID
+  // service. Sending here keeps a press on the bus when its release is in
+  // the same read; the panel would otherwise show a key the host never saw.
+  g_key_dirty = true;
+  write_keys();
 }
 
 void hid_mouse(int dx, int dy) { g_mouse_acc.add_move(dx, dy); }
@@ -104,13 +122,10 @@ void hid_service() {
   if (!bus_ready(0)) {
     return;
   }
+  if (write_keys()) {
+    return;
+  }
   if (g_key_dirty) {
-    KeyReport report{};
-    report.modifiers = g_keys.mods;
-    memcpy(report.keys, g_keys.keys, 6);
-    g_keyboard.sendReport(&report);
-    g_key_dirty = false;
-    g_tx++;
     return;
   }
   int8_t x = 0;

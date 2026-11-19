@@ -28,6 +28,7 @@ struct Shared {
 
 struct AppState(Arc<Shared>);
 
+#[cfg(target_os = "linux")]
 #[derive(Clone, Serialize)]
 struct ChordKey {
     usage: u8,
