@@ -249,7 +249,7 @@ CI checks that this backend compiles. Confirm on a Mac that keys, pointer motion
 
 Linux needs the WebKitGTK development packages listed in Prerequisites and produces `.deb` / AppImage files. Windows produces an NSIS or MSI bundle. macOS produces a `.dmg`. Bundles land in `desktop/target/release/bundle/`. The release workflow builds the Linux `.deb` and AppImage, the Windows NSIS installer, and the macOS `.dmg`, and attaches those files to the GitHub release. The asset names are listed under [Release](#release).
 
-The taskbar and Dock icons come from `desktop/app/src-tauri/icons/`: Windows embeds `icon.ico` in the executable, macOS uses `icon.icns` in the `.app` (and `cargo run` applies it to the Dock), and Linux uses the PNG set plus the `.desktop` entry installed by `scripts/run-desktop.sh`.
+The taskbar and Dock icons come from `desktop/app/src-tauri/icons/`: Windows embeds `icon.ico` in the executable, macOS uses `icon.icns` in the `.app`, and Linux uses the PNG set plus the `.desktop` entry installed by `scripts/run-desktop.sh`. `cargo run` is not a Tauri dev build (`custom-protocol` is on), so Tauri does not set the Dock icon. The app applies `icon.icns` itself when the event loop is ready.
 
 ## Hardware checks
 

@@ -3,6 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "macos")]
+mod dock_icon;
 mod improv;
 mod window_state;
 
@@ -443,6 +445,14 @@ fn main() {
                 _ => {}
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running KMJ");
+        .build(tauri::generate_context!())
+        .expect("error while building KMJ")
+        .run(|_app, event| match event {
+            // `cargo run` enables custom-protocol, so this is not a Tauri dev
+            // build. Tauri only calls setApplicationIconImage under `cfg(dev)`,
+            // and a raw binary has no bundle icon for the Dock to use.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Ready => dock_icon::apply(),
+            _ => {}
+        });
 }

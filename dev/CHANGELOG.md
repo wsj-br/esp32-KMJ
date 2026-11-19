@@ -11,6 +11,7 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 
 ## [Unreleased]
 
+- **Fixed**: desktop — the macOS Dock shows the KMJ icon when the app is started with `cargo run`. That build is not a Tauri dev build, so Tauri does not apply `icon.icns` itself.
 - **Fixed**: capture — macOS releases a stuck Command or Option before the next letter, and forwards key-up events that Quartz marks as repeats. The board sends each key transition to USB as it arrives, and packs the keyboard report so a released key cannot hide the ones still held.
 - **Changed**: desktop — the version and build timestamp in the window footer use 8px type.
 - **Changed**: desktop — a board that is on the network but not accepting the KM port asks the user to select KM Emulator, instead of saying the device is not reachable.
