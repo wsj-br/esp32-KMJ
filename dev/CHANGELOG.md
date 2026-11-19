@@ -11,6 +11,12 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 
 ## [Unreleased]
 
+- **Changed**: docs — QEMU's default user-mode NIC does not carry the mDNS multicast that Scan uses, and it has no Bluetooth controller for Scan networks.
+- **Fixed**: capture — the macOS grab is `Send`, so `kmj-capture` builds. The event-tap pointer is owned by `MacGrab` and only used through `&mut self`.
+- **Fixed**: scripts — `run-desktop.sh` and `build-desktop.sh` no longer fail on macOS Bash 3.2 when launched with no extra Cargo arguments.
+- **Changed**: docs — after `rustup-init` on macOS, the current shell loads Cargo with `. "$HOME/.cargo/env"` before the desktop scripts.
+- **Changed**: docs — the MacPorts PlatformIO installer removes any existing penv and runs with MacPorts Python 3.14. Apple's `python3` links LibreSSL and prints `NotOpenSSLWarning` on every `pio` command.
+- **Changed**: docs — firmware builds require PlatformIO Core 6.2.0 or newer. The MacPorts `platformio` port is 6.1.19 and cannot be used.
 - **Added**: docs — Homebrew, MacPorts, and winget commands for the macOS and Windows build dependencies.
 - **Changed**: release — `.github/workflows/release.yml` runs when a GitHub release is published. It builds the `kmj` firmware image and desktop installers for Linux amd64 and arm64, macOS Intel and Apple Silicon, and Windows x64, then attaches them to that release.
 - **Added**: desktop — the window footer shows the app version and build timestamp, right aligned, in small muted text.

@@ -16,6 +16,12 @@ impl MacGrab {
     }
 }
 
+// Safety: a raw pointer is not Send. MacGrab is the wrapper that owns this one.
+// Nothing else retains the tap, and start, stop, and poll need `&mut self`, so
+// exclusive access moves with the value. Sync is not implemented: an `&MacGrab`
+// must not drive the tap from two threads.
+unsafe impl Send for MacGrab {}
+
 impl InputCapture for MacGrab {
     fn start(&mut self) -> io::Result<()> {
         unsafe {

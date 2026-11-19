@@ -6,7 +6,7 @@ Run commands from the repository root unless noted otherwise. The helper scripts
 
 ## Prerequisites
 
-- [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html) for firmware builds and tests.
+- [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html) 6.2.0 or newer for firmware builds and tests. The espressif32 platform in `firmware/platformio.ini` rejects older cores with `IncompatiblePlatform`.
 - Rust 1.80 or newer for the desktop workspace.
 - A C/C++ toolchain for PlatformIO's `native` test environment.
 - Platform-specific [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) when building the desktop app.
@@ -22,7 +22,7 @@ sudo apt-get install pkg-config libx11-dev libevdev-dev libdbus-1-dev \
 
 ### macOS
 
-The Xcode Command Line Tools provide the C/C++ compiler for `pio test -e native` and the SDK the desktop app links against. WebKit ships with macOS. Install the tools, then PlatformIO Core and rustup with Homebrew or MacPorts. `rustup default stable` (or `rustup-init -y`) installs a current stable toolchain, which satisfies the Rust 1.80 requirement.
+The Xcode Command Line Tools provide the C/C++ compiler for `pio test -e native` and the SDK the desktop app links against. WebKit ships with macOS. Install the tools, then rustup with Homebrew or MacPorts. `rustup default stable` (or `rustup-init -y`) installs a current stable toolchain, which satisfies the Rust 1.80 requirement. Firmware builds also need PlatformIO Core 6.2.0 or newer. Confirm with `pio --version`. Core 6.1.19 downloads the espressif32 platform and then deletes it with `IncompatiblePlatform`.
 
 ```bash
 xcode-select --install
@@ -38,14 +38,49 @@ rustup default stable
 
 The `rustup` formula is keg-only, so that `export` has to remain on `PATH`. Add it to the shell startup file, then open a new terminal before running `cargo`.
 
+A current Homebrew `platformio` formula is 6.2.0 or newer. If `pio --version` still reports 6.1.x, the installed bottle is older:
+
+```bash
+brew update
+brew upgrade platformio
+```
+
 #### MacPorts
 
 ```bash
-sudo port install platformio rustup
+sudo port install rustup python314
 rustup-init -y
 ```
 
-`rustup-init` installs the stable toolchain and adds `~/.cargo/bin` to `PATH`. Open a new terminal before running `cargo`.
+`rustup-init` installs the stable toolchain and records `~/.cargo/bin` in the shell startup file. The shell that ran `rustup-init` does not see `cargo` until it loads that file. Open a new terminal, or run this in the current one:
+
+```bash
+. "$HOME/.cargo/env"
+```
+
+`./scripts/build-desktop.sh` and `./scripts/run-desktop.sh` need `cargo` on `PATH`. Without it they stop with `cargo is not on PATH`.
+
+Do not install the MacPorts `platformio` port. It is 6.1.19, and its `pio upgrade` command refuses to update the core. If that port is already installed, remove it before the installer. Otherwise `/opt/local/bin/pio` stays on `PATH` and is still 6.1.19:
+
+```bash
+sudo port uninstall platformio
+```
+
+Install PlatformIO Core with the upstream installer, and run that installer with MacPorts Python. `/usr/bin/python3` is Apple's Python 3.9, linked to LibreSSL 2.8.3. urllib3 then prints `NotOpenSSLWarning` on every `pio` command. `/opt/local/bin/python3.14` is linked to OpenSSL 3. Remove `~/.platformio/penv` first so the installer creates it with Python 3.14. A penv left by `/usr/bin/python3` keeps printing the warning. Run the installer outside the repository so `get-platformio.py` is not left in the working tree:
+
+```bash
+rm -rf "$HOME/.platformio/penv"
+curl -fsSL -o /tmp/get-platformio.py https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py
+/opt/local/bin/python3.14 /tmp/get-platformio.py
+```
+
+The installer creates `~/.platformio/penv`. Put that `bin` directory on `PATH` ahead of `/opt/local/bin` in the shell startup file:
+
+```bash
+export PATH="$HOME/.platformio/penv/bin:$PATH"
+```
+
+Open a new terminal. `pio --version` reports 6.2.0 or newer and does not print `NotOpenSSLWarning`.
 
 ### Windows
 
@@ -63,6 +98,8 @@ Open a new terminal so `cargo`, `python`, and `pip` are on `PATH`, then:
 ```powershell
 pip install platformio
 ```
+
+That installs the current PlatformIO Core release. If `pio --version` reports a core older than 6.2.0, run `pip install --upgrade platformio`.
 
 Keep rustup's MSVC host triple (`x86_64-pc-windows-msvc` or `aarch64-pc-windows-msvc`). Tauri links the desktop app with that toolchain. Confirm it with `rustup show`.
 
@@ -143,6 +180,8 @@ The Rust workspace contains the Tauri application and three support crates:
 Identity and paired-device keys are stored in `~/.config/kmj/client.json`. Treat this file as sensitive: deleting it creates a new identity and requires pairing again. Window geometry is stored in `~/.config/kmj/window.json` and restored when it still intersects a display.
 
 The window lists discovered `_kmj._tcp` devices, pairs, connects, and captures. The default release chord is Ctrl+Alt+Esc. That chord is never forwarded. The client then sends `RELEASE_ALL` and drops the local grab.
+
+**Scan** browses `_kmj._tcp` over mDNS for 1.5 seconds. That is link-local multicast to `224.0.0.251` on UDP port 5353. QEMU's default user-mode NIC (SLIRP) is NAT and does not forward it, so Scan reports no devices while the board is on the host's LAN. The guest needs a bridged or vmnet-shared NIC on the same link as the board. **Scan networks** uses Bluetooth, which QEMU does not provide unless a controller is passed through to the guest.
 
 The app's **Unpair** action removes the device key from `client.json`; it does not remove the desktop key stored on the board. The current device UI does not expose `RemovePeer`, so **Unpair** is not a complete board-side revocation mechanism.
 

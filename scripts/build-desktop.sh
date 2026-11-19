@@ -16,4 +16,5 @@ if [[ "${1:-}" == "--release" ]]; then
   shift
 fi
 
-exec cargo build --manifest-path "$root/desktop/Cargo.toml" -p kmj-app "${cargo_args[@]}" "$@"
+# Bash 3.2, the macOS /bin/bash, treats an empty "${array[@]}" as unbound under set -u.
+exec cargo build --manifest-path "$root/desktop/Cargo.toml" -p kmj-app ${cargo_args[@]+"${cargo_args[@]}"} "$@"
