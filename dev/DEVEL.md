@@ -272,7 +272,7 @@ Record both host operating systems and whether steps 5 to 7 left any key down.
 
 ## Dependency updates
 
-`scripts/upgrade-dependencies.sh` updates Rust dependencies, PlatformIO libraries, vendored Monocypher and SensorLib sources, and GitHub Actions versions. It also updates local Rust and PlatformIO tools unless told not to.
+`scripts/upgrade-dependencies.sh` updates Rust dependencies, PlatformIO libraries, vendored Monocypher and SensorLib sources, and GitHub Actions versions. It also updates local Rust and PlatformIO tools unless told not to. HTTPS lookups use IPv4 only, with a short connect timeout on each address. crates.io is queried at about one request per second.
 
 ```bash
 ./scripts/upgrade-dependencies.sh --dry-run

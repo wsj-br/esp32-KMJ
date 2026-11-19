@@ -4,6 +4,7 @@
 #include <TouchDrvCST.hpp>
 #include <Wire.h>
 
+#include "app/debug_log.hpp"
 #include "hal/i2c_lock.hpp"
 #include "pins.hpp"
 
@@ -27,17 +28,23 @@ bool touch_init() {
   pinMode(kTouchIrqPin, INPUT);
   i2c_lock_init();
   Wire.begin(kTouchSdaPin, kTouchSclPin);
+  // SensorLib only pulses the reset pin when it has been told the GPIO. Without
+  // that it writes a software reset and then reads the check code before the
+  // CST226 is ready, so begin() rejects a controller that answers at 0x5A.
+  g_touch.setPins(kTouchResPin, kTouchIrqPin);
   g_ok = g_touch.begin(Wire, CST226SE_SLAVE_ADDRESS, kTouchSdaPin, kTouchSclPin);
   if (!g_ok) {
     g_ok = g_touch.begin(Wire, CST816_SLAVE_ADDRESS, kTouchSdaPin, kTouchSclPin);
   }
   if (!g_ok) {
+    KMJ_LOG("touch begin failed");
     return false;
   }
   g_touch.setMaxCoordinates(kScreenW, kScreenH);
   g_touch.setSwapXY(true);
   g_touch.setMirrorXY(false, true);
   g_touch.setHomeButtonCallback(on_home, nullptr);
+  KMJ_LOG("touch model %s", g_touch.getModelName());
   return true;
 }
 
