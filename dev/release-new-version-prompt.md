@@ -97,7 +97,7 @@ KMJ is released under the **MIT License**. See [LICENSE](https://github.com/wsj-
 <details>
 <summary><strong>Disclaimer</strong></summary>
 
-Product names, including LilyGO and T-Display-S3 Pro, belong to their respective owners and are used for identification purposes only. This software is not affiliated with or endorsed by any of the mentioned brands.
+Product names, including LilyGO, T-Display-S3 Pro, Waveshare, and ESP32-S3-Touch-LCD-1.85B, belong to their respective owners and are used for identification purposes only. This software is not affiliated with or endorsed by any of the mentioned brands.
 
 See [NOTICES](https://github.com/wsj-br/esp32-KMJ/blob/main/NOTICES) for third-party dependencies.
 
@@ -107,7 +107,7 @@ See [NOTICES](https://github.com/wsj-br/esp32-KMJ/blob/main/NOTICES) for third-p
 
 This release attaches unsigned build artifacts. Each file has a `.sha256` checksum beside it. The names are listed in [DEVEL.md](https://github.com/wsj-br/esp32-KMJ/blob/main/dev/DEVEL.md#release).
 
-- **Firmware**: `KMJ_<version>_firmware.bin` is the merged `kmj` image for a LilyGO T-Display-S3 Pro. Flash it at offset `0x0`. It is HID only.
+- **Firmware**: `KMJ_<version>_firmware.bin` is the merged `kmj` image for a LilyGO T-Display-S3 Pro, and `KMJ_<version>_firmware_ws185b.bin` is the merged `kmj-ws185b` image for a Waveshare ESP32-S3-Touch-LCD-1.85B. Flash the matching one at offset `0x0`. They are HID only.
 - **Linux**: `.deb` and AppImage for amd64 and arm64.
 - **macOS**: `.dmg` for Intel (`x64`) and Apple Silicon (`aarch64`).
 - **Windows**: `KMJ_<version>_x64-setup.exe`.

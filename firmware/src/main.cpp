@@ -10,7 +10,7 @@
 #include "app/settings.hpp"
 #include "hal/backlight.hpp"
 #include "hal/display_lgfx.hpp"
-#include "hal/pmu_sy6970.hpp"
+#include "hal/pmu.hpp"
 #include "hal/touch_cst.hpp"
 
 void setup() {

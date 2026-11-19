@@ -1,0 +1,32 @@
+---
+description: Waveshare ESP32-S3-Touch-LCD-1.85B pinout, home button, and flashing notes
+alwaysApply: true
+---
+
+# Waveshare ESP32-S3-Touch-LCD-1.85B
+
+ESP32-S3R8, 16MB flash, 8MB OPI PSRAM, ST77916 360x360 round panel over QSPI. Build with PlatformIO on the pioarduino Arduino-ESP32 3.x platform. The build reuses board id `lilygo-t-display-s3` (the module is the same); per-board pins live in `firmware/include/boards/ws185b.hpp`.
+
+Environments: `kmj-ws185b` (HID only, CDC off) and `kmj-ws185b-debug` (HID plus CDC at 115200 so upload can auto-reset once KMJ is installed). `ARDUINO_USB_MODE=0` applies here too; do not use hardware CDC mode.
+
+Reserved pins:
+
+- LCD QSPI: CS GPIO21, PCLK GPIO40, DATA0-3 GPIO46/45/42/41, RST GPIO3
+- Backlight: GPIO5, plain PWM (not the LilyGO pulse driver)
+- Touch CST816S shares I2C: SDA GPIO11, SCL GPIO10, reset GPIO1, IRQ GPIO4, address 0x15
+- BQ27220 battery gauge on the same I2C bus at 0x55; the bus also carries the QMI8658 IMU (0x6B), ES8311 (0x30), ES7210 (0x80), and PCF85063 RTC (0x51), none of which KMJ uses. Take the I2C lock in `hal/i2c_lock`.
+- Speaker amplifier enable on GPIO9: hold low at boot.
+- SD card uses the SDMMC controller (GPIO12-17), not the display SPI bus.
+
+Buttons and navigation:
+
+- GPIO0 (BOOT) is the home/wake button: it feeds the same `sample.home` path as the LilyGO touch home key. GPIO0 is a strapping pin only at reset; holding it during reset enters download mode as usual.
+- The PWR button is a hardware power latch (long press 2 s cuts power). The firmware cannot read it.
+- There is no touch home key on this panel; the round UI has no back button. BOOT (short press) and the swipe-right gesture both return home.
+
+Flashing:
+
+- While the board runs the stock Waveshare firmware it enumerates as `303a:1001` (USB-Serial/JTAG), where the 1200 baud bootloader reboot does nothing. Use `scripts/flash-ws185b.sh --first-flash` for that first upload; afterwards the `-debug` env auto-resets as usual.
+- The release asset for this board is `KMJ_<version>_firmware_ws185b.bin` (flash at offset `0x0`).
+
+The round UI layout is `firmware/src/logic/layout_round.hpp` and is checked by the native tests; visual results can only be confirmed on the device.

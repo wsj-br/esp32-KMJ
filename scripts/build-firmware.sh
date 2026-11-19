@@ -21,9 +21,9 @@ if [[ $# -gt 0 && "$1" != -* ]]; then
 fi
 
 case "$env" in
-  kmj|kmj-debug) ;;
+  kmj|kmj-debug|kmj-ws185b|kmj-ws185b-debug) ;;
   *)
-    echo "Unknown environment '$env'. Use kmj or kmj-debug." >&2
+    echo "Unknown environment '$env'. Use kmj, kmj-debug, kmj-ws185b or kmj-ws185b-debug." >&2
     exit 1
     ;;
 esac

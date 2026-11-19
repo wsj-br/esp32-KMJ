@@ -1,9 +1,11 @@
-#include "hal/pmu_sy6970.hpp"
+#include "hal/pmu.hpp"
 
 #include <Wire.h>
 
 #include "hal/i2c_lock.hpp"
 #include "pins.hpp"
+
+#if defined(KMJ_BOARD_TDISPLAY_S3)
 
 namespace kmj {
 namespace {
@@ -32,21 +34,6 @@ int read_reg(uint8_t reg) {
     return -1;
   }
   return Wire.read();
-}
-
-int percent_from_mv(int mv) {
-  constexpr int kEmpty = 3300;
-  constexpr int kFull = 4200;
-  if (mv <= 0) {
-    return -1;
-  }
-  if (mv <= kEmpty) {
-    return 0;
-  }
-  if (mv >= kFull) {
-    return 100;
-  }
-  return (mv - kEmpty) * 100 / (kFull - kEmpty);
 }
 
 }  // namespace
@@ -89,3 +76,5 @@ PowerSample pmu_read() {
 }
 
 }  // namespace kmj
+
+#endif  // KMJ_BOARD_TDISPLAY_S3

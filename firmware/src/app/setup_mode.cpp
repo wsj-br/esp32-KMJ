@@ -11,7 +11,7 @@
 #include "app/settings.hpp"
 #include "hal/backlight.hpp"
 #include "hal/display_lgfx.hpp"
-#include "hal/pmu_sy6970.hpp"
+#include "hal/pmu.hpp"
 #include "hal/touch_cst.hpp"
 
 namespace kmj {
@@ -36,9 +36,16 @@ struct Rect {
   bool hit(int px, int py) const { return px >= x && px < x + w && py >= y && py < y + h; }
 };
 
+#if defined(KMJ_BOARD_TDISPLAY_S3)
 constexpr Rect kAllow{24, 146, 200, 58};
 constexpr Rect kDeny{256, 146, 200, 58};
 constexpr Rect kCancel{140, 146, 200, 58};
+#else
+// Waveshare 1.85B: round 360x360 panel; compact buttons inside the bezel.
+constexpr Rect kAllow{56, 210, 120, 40};
+constexpr Rect kDeny{184, 210, 120, 40};
+constexpr Rect kCancel{120, 210, 120, 40};
+#endif
 
 volatile bool g_identify = false;
 
@@ -53,6 +60,7 @@ void paint(LGFX& tft, const char* line, const char* hint, Buttons buttons) {
   const uint16_t amber = tft.color565(0xF0, 0xA2, 0x02);
   const uint16_t dim = tft.color565(0x8A, 0x96, 0xA3);
   tft.fillScreen(TFT_BLACK);
+#if defined(KMJ_BOARD_TDISPLAY_S3)
   tft.setTextDatum(lgfx::top_left);
   tft.setFont(&lgfx::fonts::DejaVu24);
   tft.setTextColor(tft.color565(0xC9, 0xD2, 0xDC), TFT_BLACK);
@@ -63,6 +71,18 @@ void paint(LGFX& tft, const char* line, const char* hint, Buttons buttons) {
   tft.drawString(line, tft.width() / 2, 78);
   tft.setTextColor(dim, TFT_BLACK);
   tft.drawString(hint, tft.width() / 2, 112);
+#else
+  // Round panel: centered text down the vertical axis.
+  tft.setTextDatum(lgfx::middle_center);
+  tft.setFont(&lgfx::fonts::DejaVu24);
+  tft.setTextColor(tft.color565(0xC9, 0xD2, 0xDC), TFT_BLACK);
+  tft.drawString("Wi-Fi setup", tft.width() / 2, 70);
+  tft.setFont(&lgfx::fonts::DejaVu18);
+  tft.setTextColor(amber, TFT_BLACK);
+  tft.drawString(line, tft.width() / 2, 150);
+  tft.setTextColor(dim, TFT_BLACK);
+  tft.drawString(hint, tft.width() / 2, 190);
+#endif
   if (buttons == Buttons::AllowDeny) {
     button(tft, kAllow, tft.color565(0x2E, 0x8B, 0x57), "Allow");
     button(tft, kDeny, tft.color565(0xB0, 0x3A, 0x3A), "Deny");
@@ -120,6 +140,7 @@ void setup_mode_run() {
   uint32_t phase_at = began;
   uint32_t identify_until = 0;
   bool was_down = false;
+  bool was_boot_down = false;
   char drawn[96] = {};
 
   while (true) {
@@ -134,7 +155,12 @@ void setup_mode_run() {
     improv_poll(now);
 
     const TouchSample sample = touch_read();
-    const bool pressed = sample.ok && sample.down && !was_down;
+    // The BOOT button (home button) also dismisses the failed screen; the
+    // Allow/Deny choice still needs the touch panel.
+    const bool boot_down = kHomeButtonPin >= 0 && digitalRead(kHomeButtonPin) == LOW;
+    const bool boot_pressed = boot_down && !was_boot_down;
+    was_boot_down = boot_down;
+    const bool pressed = (sample.ok && sample.down && !was_down) || boot_pressed;
     was_down = sample.ok && sample.down;
 
     if (g_identify) {

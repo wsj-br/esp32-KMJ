@@ -77,7 +77,7 @@ struct Model {
   int peer_count = 0;
   bool setup_fail = false;
   char setup_note[48] = {};
-  char device_name[20] = "KMJ";
+  char device_name[20] = "";  // placeholder; runtime copies it from the settings
   char version[12] = "0.1.1";
   uint32_t heap_free = 0;
   uint32_t psram_free = 0;

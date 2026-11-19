@@ -1,9 +1,13 @@
 #include "app/settings.hpp"
 
 #include <Preferences.h>
+#include <esp_mac.h>
 #include <esp_random.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "logic/names.hpp"
+#include "pins.hpp"
 
 namespace kmj {
 namespace {
@@ -19,6 +23,17 @@ void copy_str(char* dst, size_t cap, const char* src) {
   snprintf(dst, cap, "%s", src);
 }
 
+// Board default name: kDefaultNamePrefix plus the last byte of the Wi-Fi
+// station MAC as two uppercase hex digits (e.g. "KMJ-TD-9F"). The MAC comes
+// straight from eFuse, so this works before Wi-Fi is ever started.
+void default_device_name(char* dst, size_t cap) {
+  uint8_t mac[6] = {};
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  if (!format_default_name(kDefaultNamePrefix, mac[5], dst, cap)) {
+    copy_str(dst, cap, kDefaultNamePrefix);
+  }
+}
+
 }  // namespace
 
 Settings& settings() { return g_settings; }
@@ -31,10 +46,12 @@ void settings_load() {
   prefs.getString("host", g_settings.hostname, sizeof(g_settings.hostname));
   prefs.getString("name", g_settings.device_name, sizeof(g_settings.device_name));
   if (g_settings.hostname[0] == '\0') {
-    copy_str(g_settings.hostname, sizeof(g_settings.hostname), "kmj");
+    default_device_name(g_settings.hostname, sizeof(g_settings.hostname));
   }
   if (g_settings.device_name[0] == '\0') {
-    copy_str(g_settings.device_name, sizeof(g_settings.device_name), "KMJ");
+    // Hostname and device name share the default; a rename via Improv can
+    // set them apart later.
+    copy_str(g_settings.device_name, sizeof(g_settings.device_name), g_settings.hostname);
   }
   if (prefs.getBytes("priv", g_settings.identity.priv, 32) != 32) {
     esp_fill_random(g_settings.identity.priv, 32);

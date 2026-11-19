@@ -18,6 +18,11 @@ if port is None:
     ports = sorted(glob.glob("/dev/ttyACM*"))
     if not ports:
         sys.exit("no /dev/ttyACM* port found")
+    if len(ports) > 1:
+        sys.exit(
+            "multiple serial ports found (%s); pass the port explicitly"
+            % ", ".join(ports)
+        )
     port = ports[0]
 
 serial.Serial(port, 1200).close()

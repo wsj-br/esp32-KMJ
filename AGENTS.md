@@ -1,6 +1,6 @@
 # AGENTS.md
 
-KMJ turns a LilyGO T-Display-S3 Pro into a USB keyboard/mouse injector, driven over Wi-Fi by a Tauri desktop app. Two components in one repo: PlatformIO firmware (`firmware/`) and a Rust workspace (`desktop/`). Run everything from the repo root.
+KMJ turns a LilyGO T-Display-S3 Pro or a Waveshare ESP32-S3-Touch-LCD-1.85B into a USB keyboard/mouse injector, driven over Wi-Fi by a Tauri desktop app. Two components in one repo: PlatformIO firmware (`firmware/`) and a Rust workspace (`desktop/`). Run everything from the repo root.
 
 Details live in [`dev/DEVEL.md`](dev/DEVEL.md) (build, hardware checks, release) and [`dev/proto/PROTOCOL.md`](dev/proto/PROTOCOL.md) (wire format). Pins, USB mode and flashing modes are in [`.cursor/rules/t-display-s3.mdc`](.cursor/rules/t-display-s3.mdc). Read those instead of guessing, and do not copy them here.
 
@@ -11,7 +11,7 @@ CI runs only when a GitHub release is published, never on pushes or PRs. That wo
 | Change | Run |
 | --- | --- |
 | `firmware/src/logic/**` (platform-independent) | `pio test -e native -d firmware` |
-| Any firmware change | `pio run -e kmj -d firmware` (the build CI uses) |
+| Any firmware change | `pio run -e kmj -d firmware` and `pio run -e kmj-ws185b -d firmware` (the builds CI uses) |
 | `desktop/kmj-proto`, `kmj-capture`, `kmj-client` | `cargo test --manifest-path desktop/Cargo.toml --workspace --exclude kmj-app` |
 | `desktop/app` (Tauri) | `./scripts/build-desktop.sh` |
 | Protocol or handshake | Both firmware and desktop checks above, and keep `dev/proto/PROTOCOL.md` and the vectors in sync |
@@ -20,15 +20,16 @@ Use the host tests first. They need no board. Add a Unity test in `firmware/test
 
 ## Hardware: ask first
 
-- Never run `scripts/flash-firmware.sh` or `pio run ... -t upload` unless the user asks. `kmj-debug` flashing reboots the board into the bootloader, and `kmj` needs manual BOOT/RESET.
+- Never run `scripts/flash-firmware.sh`, the per-device flash scripts (`flash-tdisplay-s3.sh`, `flash-ws185b.sh`), or `pio run ... -t upload` unless the user asks. Flashing a `-debug` env reboots the board into the bootloader, and the HID-only envs need manual BOOT/RESET.
 - Never reset, monitor or open `/dev/ttyACM0` unprompted.
-- `kmj` has no serial port at runtime. Use `kmj-debug` (`KMJ_DEBUG_LOG=1`) for logging.
+- The HID-only envs have no serial port at runtime. Use the `-debug` env (`KMJ_DEBUG_LOG=1`) for logging.
 - Hardware verification steps are in `dev/DEVEL.md` under "Hardware checks". Say that you did not run them rather than claiming a pass.
 
 ## Firmware (`firmware/`)
 
-- Layers: `hal/` drivers, `port/` LVGL glue, `ui/` LVGL 9 screens, `app/` runtime, Wi-Fi, BLE, KM server and settings, `logic/` pure host-testable code (crypto, session, link, jiggler, keys, Improv RPC).
-- The board id `lilygo-t-display-s3` is the non-Pro variant. Its pin macros are wrong for this board. Use `firmware/include/pins.hpp` and `src/hal/display_lgfx.cpp`.
+- Layers: `hal/` drivers, `port/` LVGL glue, `ui/` LVGL 9 screens, `app/` runtime, Wi-Fi, BLE, KM server and settings, `logic/` pure host-testable code (crypto, session, link, jiggler, keys, layout, Improv RPC).
+- Two supported boards, selected by `-DKMJ_BOARD_*` in `firmware/platformio.ini`. Board pins, screen geometry and identity live in `firmware/include/boards/tdisplay_s3.hpp` (LilyGO) and `firmware/include/boards/ws185b.hpp` (Waveshare); `firmware/include/pins.hpp` holds only shared constants including `kFirmwareVersion`. Screen construction lives in `firmware/src/ui/screens_wide.cpp` / `screens_round.cpp`; painting and navigation stay in `ui.cpp`.
+- The pio board id `lilygo-t-display-s3` is the non-Pro LilyGO variant and is shared by both boards. Its pin macros are wrong for the Pro; the firmware pins live in `firmware/include/boards/` and `firmware/src/hal/display_lgfx.cpp`.
 - Keep `ARDUINO_USB_MODE=0` in both envs. Do not restore the board manifest's mode 1.
 - Memory is tight: 8 MB OPI PSRAM, NimBLE allocations are wrapped through `tools/patch_nimble.py` and `-Wl,--wrap` flags. Do not remove those flags.
 - Touch and the PMU share one I2C bus. Take the lock in `hal/i2c_lock`. The SD card shares the TFT SPI bus, so keep its CS (GPIO14) high.

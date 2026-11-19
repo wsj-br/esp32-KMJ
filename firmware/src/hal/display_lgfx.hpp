@@ -2,6 +2,8 @@
 
 #include <LovyanGFX.hpp>
 
+#include "pins.hpp"
+
 namespace kmj {
 
 class LGFX : public lgfx::LGFX_Device {
@@ -10,7 +12,11 @@ class LGFX : public lgfx::LGFX_Device {
 
  private:
   lgfx::Bus_SPI bus_;
+#if defined(KMJ_BOARD_TDISPLAY_S3)
   lgfx::Panel_ST7796 panel_;
+#elif defined(KMJ_BOARD_WS_185B)
+  lgfx::Panel_ST77916 panel_;
+#endif
 };
 
 LGFX& display();

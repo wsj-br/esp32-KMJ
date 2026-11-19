@@ -85,57 +85,16 @@ jobs:
       - name: Build kmj
         run: pio run -e kmj -d firmware
 
-      - name: Package merged firmware image
+      - name: Build kmj-ws185b
+        run: pio run -e kmj-ws185b -d firmware
+
+      - name: Package merged firmware images
         shell: bash
         run: |
           set -euo pipefail
           version="$(bash ./scripts/version.sh)"
-          mkdir -p dist
-          python3 - "$version" <<'PY'
-          import hashlib
-          import json
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          version = sys.argv[1]
-          root = Path.cwd()
-          build = root / "firmware" / ".pio" / "build" / "kmj"
-          args = json.loads((build / "flasher_args.json").read_text(encoding="utf-8"))
-          files = args.get("flash_files")
-          if not isinstance(files, dict) or not files:
-              sys.exit("flasher_args.json has no flash_files")
-          settings = args.get("flash_settings") or {}
-          for key in ("flash_mode", "flash_freq", "flash_size"):
-              if not settings.get(key):
-                  sys.exit(f"flasher_args.json flash_settings is missing {key}")
-          chip = (args.get("extra_esptool_args") or {}).get("chip") or "esp32s3"
-
-          def resolve(name):
-              path = Path(name)
-              candidates = [path, build / name, root / "firmware" / name]
-              for candidate in candidates:
-                  if candidate.is_file():
-                      return candidate
-              sys.exit(f"flash file not found: {name}")
-
-          output = root / "dist" / f"KMJ_{version}_firmware.bin"
-          command = [
-              "pio", "pkg", "exec", "-p", "tool-esptoolpy", "-d", "firmware", "--",
-              "esptool.py", "--chip", chip, "merge-bin",
-              "--output", str(output),
-              "--flash-mode", settings["flash_mode"],
-              "--flash-freq", settings["flash_freq"],
-              "--flash-size", settings["flash_size"],
-          ]
-          for offset, name in sorted(files.items(), key=lambda item: int(item[0], 16)):
-              command.extend([offset, str(resolve(name))])
-          subprocess.run(command, check=True)
-          digest = hashlib.sha256(output.read_bytes()).hexdigest()
-          output.with_name(output.name + ".sha256").write_text(
-              f"{digest}  {output.name}\n", encoding="utf-8"
-          )
-          PY
+          bash ./scripts/package-firmware.sh kmj "KMJ_${version}_firmware"
+          bash ./scripts/package-firmware.sh kmj-ws185b "KMJ_${version}_firmware_ws185b"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
@@ -144,6 +103,8 @@ jobs:
           path: |
             dist/KMJ_*_firmware.bin
             dist/KMJ_*_firmware.bin.sha256
+            dist/KMJ_*_firmware_ws185b.bin
+            dist/KMJ_*_firmware_ws185b.bin.sha256
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
@@ -303,6 +264,8 @@ jobs:
           expected=(
             "KMJ_${version}_firmware.bin"
             "KMJ_${version}_firmware.bin.sha256"
+            "KMJ_${version}_firmware_ws185b.bin"
+            "KMJ_${version}_firmware_ws185b.bin.sha256"
             "KMJ_${version}_amd64.deb"
             "KMJ_${version}_amd64.deb.sha256"
             "KMJ_${version}_amd64.AppImage"
@@ -338,6 +301,8 @@ jobs:
           assets=(
             "dist/KMJ_${VERSION}_firmware.bin"
             "dist/KMJ_${VERSION}_firmware.bin.sha256"
+            "dist/KMJ_${VERSION}_firmware_ws185b.bin"
+            "dist/KMJ_${VERSION}_firmware_ws185b.bin.sha256"
             "dist/KMJ_${VERSION}_amd64.deb"
             "dist/KMJ_${VERSION}_amd64.deb.sha256"
             "dist/KMJ_${VERSION}_amd64.AppImage"

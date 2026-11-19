@@ -108,7 +108,7 @@ Keep rustup's MSVC host triple (`x86_64-pc-windows-msvc` or `aarch64-pc-windows-
 | Path | What it is |
 | --- | --- |
 | [`brand/`](../brand/) | Logo, app icon, and favicon source SVGs. |
-| [`firmware/`](../firmware/) | PlatformIO firmware. `kmj` is HID only; `kmj-debug` adds USB serial. |
+| [`firmware/`](../firmware/) | PlatformIO firmware for the LilyGO T-Display-S3 Pro (`kmj`, `kmj-debug`) and the Waveshare ESP32-S3-Touch-LCD-1.85B (`kmj-ws185b`, `kmj-ws185b-debug`). The HID-only envs have no serial port; the `-debug` envs add USB serial. |
 | [`desktop/`](../desktop/) | Rust workspace containing the protocol, capture, client, and Tauri app crates. |
 | [`dev/proto/PROTOCOL.md`](proto/PROTOCOL.md) | Wire format. Locked vectors are in [`dev/proto/vectors/handshake.txt`](proto/vectors/handshake.txt). |
 | [`dev/CHANGELOG.md`](CHANGELOG.md) | Notable changes. Add new entries under `[Unreleased]`. |
@@ -121,8 +121,14 @@ The scripts under `scripts/` are documented below. Run them from any directory; 
 
 | Script | Purpose and defaults |
 | --- | --- |
-| `build-firmware.sh [kmj\|kmj-debug]` | Builds firmware. Defaults to the HID-only `kmj` environment and passes remaining arguments to `pio run`. |
-| `flash-firmware.sh [kmj\|kmj-debug]` | Enters the ROM bootloader, builds, and uploads. Defaults to `kmj-debug`; accepts PlatformIO upload arguments such as `--upload-port`. |
+| `build-firmware.sh [env]` | Builds firmware. Envs: `kmj`, `kmj-debug`, `kmj-ws185b`, `kmj-ws185b-debug`. Passes remaining arguments to `pio run`. |
+| `flash-firmware.sh [--first-flash] [env]` | Enters the ROM bootloader, builds, and uploads for any env. Defaults to `kmj-debug`; accepts PlatformIO upload arguments such as `--upload-port`. |
+| `build-tdisplay-s3.sh [kmj\|kmj-debug]` | Builds for the LilyGO T-Display-S3 Pro. Defaults to `kmj`. |
+| `flash-tdisplay-s3.sh [--first-flash] [kmj\|kmj-debug]` | Flashes the LilyGO. Defaults to `kmj-debug`. |
+| `build-ws185b.sh [kmj-ws185b\|kmj-ws185b-debug]` | Builds for the Waveshare 1.85B. Defaults to `kmj-ws185b`. |
+| `flash-ws185b.sh [--first-flash] [kmj-ws185b\|kmj-ws185b-debug]` | Flashes the Waveshare. Defaults to `kmj-ws185b-debug`; use `--first-flash` while the stock firmware is installed. |
+| `build-all-firmware.sh` | Builds the production image for every supported board. |
+| `package-firmware.sh <env> <asset-name>` | Packages a built env into a single merged flash image plus `.sha256` in `dist/`, the way the release workflow does. |
 | `build-desktop.sh [--release]` | Builds `kmj-app` in debug mode by default. Remaining arguments are passed to `cargo build`. |
 | `run-desktop.sh [--release]` | Builds and runs `kmj-app`. On Linux it also installs the user-level launcher and icons. |
 | `build-installers.sh` | Builds native installers with Tauri CLI 2. Installs or updates `tauri-cli` to the latest stable 2.x when the installed copy is missing or older. The AppImage build skips linuxdeploy's copyright-file scan unless `--copyright-files` is passed. Extra arguments go to `cargo tauri build`. |
@@ -136,14 +142,15 @@ The scripts under `scripts/` are documented below. Run them from any directory; 
 Build or flash from the repository root:
 
 ```bash
-./scripts/build-firmware.sh kmj
-./scripts/flash-firmware.sh kmj        # HID-only build (hold BOOT, tap RESET, release BOOT)
-./scripts/flash-firmware.sh kmj-debug  # HID + serial; auto-reboots into the bootloader
+./scripts/build-tdisplay-s3.sh kmj      # LilyGO build
+./scripts/build-ws185b.sh               # Waveshare build
+./scripts/flash-tdisplay-s3.sh kmj-debug   # HID + serial; auto-reboots into the bootloader
+./scripts/flash-ws185b.sh --first-flash    # Waveshare first upload while stock firmware is installed
 ```
 
-You can also invoke PlatformIO directly, for example `pio run -e kmj -d firmware`. Override the default `/dev/ttyACM0` upload port with `--upload-port` or `PLATFORMIO_UPLOAD_PORT`.
+You can also invoke PlatformIO directly, for example `pio run -e kmj -d firmware`. Pass `--upload-port` or `PLATFORMIO_UPLOAD_PORT` to choose the port. Without one, the flash scripts use a single `/dev/serial/by-id/usb-*` entry (falling back to a single `/dev/ttyACM*`) and refuse to guess when several boards are attached.
 
-`kmj` has no serial port while running. Hold **BOOT**, tap **RESET**, release **BOOT**, then upload. `kmj-debug` keeps a CDC port at 115200, allowing `scripts/flash-firmware.sh kmj-debug` (through `firmware/tools/bootloader.py`) to enter download mode without button presses. Disconnecting USB also removes that serial port.
+The HID-only envs (`kmj`, `kmj-ws185b`) have no serial port while running. Hold **BOOT**, tap **RESET**, release **BOOT**, then upload. The `-debug` envs keep a CDC port at 115200, allowing their flash scripts (through `firmware/tools/bootloader.py`) to enter download mode without button presses. Disconnecting USB also removes that serial port. On the Waveshare, use `--first-flash` until KMJ is installed: the stock firmware's USB-Serial/JTAG port ignores the 1200 baud reboot, so the script builds and then flashes with esptool's default reset instead.
 
 Host tests, which do not need the board:
 
@@ -151,11 +158,11 @@ Host tests, which do not need the board:
 pio test -e native -d firmware
 ```
 
-The `native` environment compiles only the platform-independent logic. The release workflow runs these tests, builds `kmj`, and attaches a merged firmware image to the GitHub release. It never flashes a board.
+The `native` environment compiles only the platform-independent logic. The release workflow runs these tests, builds `kmj` and `kmj-ws185b`, and attaches a merged image for each board to the GitHub release. It never flashes a board.
 
-### Hardware constraints
+### Hardware constraints: LilyGO T-Display-S3 Pro
 
-The target is the T-Display-S3 **Pro**: ESP32-S3R8, 16 MB flash, 8 MB OPI PSRAM, and a 222×480 ST7796 panel. PlatformIO uses board ID `lilygo-t-display-s3` for the shared module, but the non-Pro variant's pin macros are not valid for this board. The firmware keeps the Pro mappings in `firmware/include/pins.hpp` and `firmware/src/hal/display_lgfx.cpp`.
+The target is the T-Display-S3 **Pro**: ESP32-S3R8, 16 MB flash, 8 MB OPI PSRAM, and a 222×480 ST7796 panel. PlatformIO uses board ID `lilygo-t-display-s3` for the shared module, but the non-Pro variant's pin macros are not valid for this board. The firmware keeps the Pro mappings in `firmware/include/boards/tdisplay_s3.hpp` and `firmware/src/hal/display_lgfx.cpp`.
 
 - TFT SPI: SCK 18, MOSI 17, MISO 8, CS 39, DC 9, reset 47.
 - Backlight: GPIO 48.
@@ -164,9 +171,22 @@ The target is the T-Display-S3 **Pro**: ESP32-S3R8, 16 MB flash, 8 MB OPI PSRAM,
 - Buttons: GPIO 0, 12, and 16. GPIO 15 is a camera pin, not panel power.
 - USB HID requires `ARDUINO_USB_MODE=0`; do not restore the board manifest's hardware-CDC mode.
 
+### Hardware constraints: Waveshare ESP32-S3-Touch-LCD-1.85B
+
+ESP32-S3R8, 16 MB flash, 8 MB OPI PSRAM, and a 360×360 round ST77916 panel over QSPI. Same pio board ID as the LilyGO; the Waveshare mappings live in `firmware/include/boards/ws185b.hpp`.
+
+- LCD QSPI: CS 21, PCLK 40, data 46/45/42/41, reset 3.
+- Backlight: GPIO 5, plain PWM.
+- Touch CST816S I2C: SDA 11, SCL 10, reset 1, IRQ 4, address 0x15.
+- BQ27220 battery gauge on the same I2C bus at 0x55, next to the unused QMI8658 (0x6B), ES8311 (0x30), ES7210 (0x80), and PCF85063 (0x51).
+- Speaker amplifier enable on GPIO 9: held low at boot.
+- SD card is on the SDMMC controller (GPIO 12–17), separate from the display bus.
+- Buttons: BOOT on GPIO 0 is the home/wake button; the PWR button is a hardware power latch the firmware cannot read. There is no touch home key.
+- USB HID requires `ARDUINO_USB_MODE=0` here as well.
+
 ## UI development
 
-The panel UI in `firmware/src/ui` uses LVGL 9 and the LovyanGFX flush in `firmware/src/port/lvgl_port.cpp`. There is currently no ready-to-run desktop simulator. A simulator would need LVGL's SDL driver (`LV_USE_SDL`) and a `BoardLink` that supplies pointer events in place of the CST226. Iterate on the device with `pio run -e kmj -d firmware -t upload`, or use `pio test -e native -d firmware` for host logic.
+The panel UI in `firmware/src/ui` uses LVGL 9 and the LovyanGFX flush in `firmware/src/port/lvgl_port.cpp`. Screen construction is per board: `screens_wide.cpp` (LilyGO 480×222) and `screens_round.cpp` (Waveshare 360×360 round, geometry from `firmware/src/logic/layout_round.hpp`, verified against the circle by the native tests). Painting and navigation are shared in `ui.cpp`. There is currently no ready-to-run desktop simulator. A simulator would need LVGL's SDL driver (`LV_USE_SDL`) and a `BoardLink` that supplies pointer events in place of the touch driver. Iterate on the device with the flash scripts, or use `pio test -e native -d firmware` for host logic and layout checks.
 
 ## Desktop client
 
@@ -253,7 +273,7 @@ The taskbar and Dock icons come from `desktop/app/src-tauri/icons/`: Windows emb
 
 ## Hardware checks
 
-These checks need a LilyGO T-Display-S3 Pro, a source computer running the desktop app, and a USB target. CI does not flash hardware.
+These checks need a supported board, a source computer running the desktop app, and a USB target. CI does not flash hardware. The LilyGO checks below assume the T-Display-S3 Pro; the Waveshare-specific additions follow.
 
 1. Build `firmware` with `pio run -e kmj` and flash it. On Windows, Linux, and macOS, the board enumerates as a composite HID keyboard and mouse named `KMJ Composite`, VID `413C`, PID `250E`.
 2. From Configuration, tap Wi-Fi setup and Allow. In the desktop app, find the device and send a network. The status strip shows the SSID, RSSI, and IP. Forget Wi-Fi and confirm the strip returns to `Wi-Fi off`.
@@ -269,6 +289,24 @@ These checks need a LilyGO T-Display-S3 Pro, a source computer running the deskt
 Full-screen LVGL transitions are limited by the 40 MHz SPI panel; partial status-line updates should remain responsive.
 
 Record both host operating systems and whether steps 5 to 7 left any key down.
+
+### Waveshare 1.85B hardware checks
+
+Same steps as above on a Waveshare ESP32-S3-Touch-LCD-1.85B with `kmj-ws185b` / `kmj-ws185b-debug`, plus the board-specific ones:
+
+1. Flash with `scripts/flash-ws185b.sh --first-flash` while the stock firmware is installed.
+2. Display: colours are not inverted or channel-swapped, the image is not mirrored, and nothing is cut off by the round bezel (`invert` / `rgb_order` / rotation in `firmware/src/hal/display_lgfx.cpp`).
+3. Touch: taps map to the right on-screen positions across the whole round panel; edges respond.
+4. Backlight: all 16 steps are visible and monotonic; polarity is not inverted.
+5. BOOT button: short press wakes a blank display, returns home from other screens, and blanks the display on home; a long press blanks it without stopping the function.
+6. Battery gauge: Configuration shows a plausible voltage and percentage; with USB power the status shows charging or USB, and without a battery it shows no battery.
+7. Wi-Fi setup (Allow → send credentials) and pairing work as on the LilyGO; the board appears in the desktop app as `KMJ-TL-XX`, where XX matches the last byte of its Wi-Fi MAC.
+
+Run once on 2026-11-19 with the `kmj-ws185b-debug` build of 0.1.1: display, orientation, touch mapping (touch answers as `CST816T`), backlight, BOOT wake/home, Wi-Fi setup over BLE, pairing, and capture all passed; the debug heartbeats stayed stable afterwards. The release-style merged `KMJ_<version>_firmware_ws185b.bin` image and the soak step were not run.
+
+### Default device names
+
+The default hostname and device name are per board: `KMJ-TD-XX` on the LilyGO and `KMJ-TL-XX` on the Waveshare, where XX is the last byte of the board's Wi-Fi MAC in uppercase hex (for example MAC `78:ab:bb:9b:7c:9f` gives `KMJ-TD-9F`). The name is recomputed at boot from the fixed MAC and is not stored. A name saved through Configuration → Wi-Fi setup (Improv) takes priority, so rename there if two boards of the same type end up with the same suffix. The mDNS service type stays `_kmj._tcp`.
 
 ## Dependency updates
 
@@ -290,6 +328,7 @@ Run `./scripts/upgrade-dependencies.sh --help` for component-specific skip flags
 | File | What it is |
 | --- | --- |
 | `KMJ_<version>_firmware.bin` | Merged `kmj` image for the LilyGO T-Display-S3 Pro. Flash it at offset `0x0`. |
+| `KMJ_<version>_firmware_ws185b.bin` | Merged `kmj-ws185b` image for the Waveshare ESP32-S3-Touch-LCD-1.85B. Flash it at offset `0x0`. |
 | `KMJ_<version>_amd64.deb` | Linux amd64 Debian package. |
 | `KMJ_<version>_amd64.AppImage` | Linux amd64 AppImage. |
 | `KMJ_<version>_arm64.deb` | Linux arm64 Debian package. |

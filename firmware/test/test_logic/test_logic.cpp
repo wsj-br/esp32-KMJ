@@ -3,10 +3,13 @@
 
 #include <unity.h>
 
+#include "logic/button.hpp"
 #include "logic/improv_rpc.hpp"
 #include "logic/jiggler.hpp"
 #include "logic/keys.hpp"
+#include "logic/layout_round.hpp"
 #include "logic/link.hpp"
+#include "logic/names.hpp"
 
 namespace {
 
@@ -414,6 +417,85 @@ void test_improv_checksum_and_wifi() {
   TEST_ASSERT_TRUE(kmj::improv_parse(result, rn).valid);
 }
 
+void test_button_debounce() {
+  kmj::Button btn;
+  btn.begin(false, 1000);
+
+  // Bouncing right after the edge must not confirm a press.
+  TEST_ASSERT_FALSE(btn.update(true, 1010));
+  TEST_ASSERT_FALSE(btn.update(false, 1015));
+  TEST_ASSERT_FALSE(btn.update(true, 1020));
+  TEST_ASSERT_FALSE(btn.down());
+
+  // Stable low for the debounce window confirms exactly one press.
+  TEST_ASSERT_TRUE(btn.update(true, 1055));
+  TEST_ASSERT_TRUE(btn.down());
+  TEST_ASSERT_FALSE(btn.update(true, 2000));
+
+  // Release also needs a stable window; a bounce does not flip the state.
+  TEST_ASSERT_FALSE(btn.update(false, 2010));
+  TEST_ASSERT_TRUE(btn.down());
+  TEST_ASSERT_FALSE(btn.update(true, 2015));
+  TEST_ASSERT_TRUE(btn.down());
+  TEST_ASSERT_FALSE(btn.update(false, 2045));  // first stable sample, window running
+  TEST_ASSERT_TRUE(btn.down());
+  TEST_ASSERT_FALSE(btn.update(false, 2080));  // window elapsed: release confirmed
+  TEST_ASSERT_FALSE(btn.down());
+}
+
+void test_button_begin_held() {
+  kmj::Button btn;
+  // Held during boot: seeded down, no phantom press event.
+  btn.begin(true, 500);
+  TEST_ASSERT_TRUE(btn.down());
+  TEST_ASSERT_FALSE(btn.update(true, 600));
+}
+
+void test_round_layout_fits_circle() {
+  using namespace kmj::layout_round;
+  for (size_t i = 0; i < kRoundWidgetCount; i++) {
+    const RoundWidget& w = kRoundWidgets[i];
+    TEST_ASSERT_TRUE_MESSAGE(rect_inside_circle(w.rect), w.name);
+    if (w.interactive) {
+      TEST_ASSERT_TRUE_MESSAGE(w.rect.w >= kMinTouchW, w.name);
+      TEST_ASSERT_TRUE_MESSAGE(w.rect.h >= kMinTouchH, w.name);
+    }
+    TEST_ASSERT_TRUE_MESSAGE(w.rect.x >= 0 && w.rect.y >= 0, w.name);
+    TEST_ASSERT_TRUE_MESSAGE(w.rect.x + w.rect.w <= kRoundSize && w.rect.y + w.rect.h <= kRoundSize, w.name);
+  }
+  // The status strip must stay inside the top/bottom bands where the chord is
+  // wide enough to be readable: the outermost status rows sit no further from
+  // the center than 140 px.
+  TEST_ASSERT_LESS_OR_EQUAL_INT(140, kBat.y + kBat.h - kRoundCenter);
+  TEST_ASSERT_LESS_OR_EQUAL_INT(140, kRoundCenter - kIp.y);
+  // A sample chord: at the widest row the usable width is the full diameter
+  // minus the margin.
+  TEST_ASSERT_EQUAL_INT(kRoundUsableRadius, chord_half_width(kRoundCenter));
+  TEST_ASSERT_EQUAL_INT(0, chord_half_width(0));
+}
+
+void test_default_names() {
+  char buf[32];
+  // The example from the request: MAC 78:ab:bb:9b:7c:9f.
+  TEST_ASSERT_TRUE(kmj::format_default_name("KMJ-TD", 0x9F, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL_STRING("KMJ-TD-9F", buf);
+  TEST_ASSERT_TRUE(kmj::format_default_name("KMJ-TL", 0x9F, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL_STRING("KMJ-TL-9F", buf);
+  // Leading zero bytes stay two digits.
+  TEST_ASSERT_TRUE(kmj::format_default_name("KMJ-TD", 0x0A, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL_STRING("KMJ-TD-0A", buf);
+  TEST_ASSERT_TRUE(kmj::format_default_name("KMJ-TL", 0x00, buf, sizeof(buf)));
+  TEST_ASSERT_EQUAL_STRING("KMJ-TL-00", buf);
+  // Both defaults are valid hostnames and fit the settings buffers.
+  TEST_ASSERT_TRUE(kmj::hostname_ok("KMJ-TD-9F"));
+  TEST_ASSERT_TRUE(kmj::hostname_ok("KMJ-TL-9F"));
+  // Too-small buffer fails.
+  TEST_ASSERT_FALSE(kmj::format_default_name("KMJ-TD", 0x9F, buf, 8));
+  TEST_ASSERT_FALSE(kmj::format_default_name("KMJ-TD", 0x9F, buf, 0));
+  TEST_ASSERT_FALSE(kmj::format_default_name("", 0x9F, buf, sizeof(buf)));
+  TEST_ASSERT_FALSE(kmj::format_default_name(nullptr, 0x9F, buf, sizeof(buf)));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_blake2_and_x25519);
@@ -423,5 +505,9 @@ int main() {
   RUN_TEST(test_jiggler_returns_and_counts);
   RUN_TEST(test_keys_and_mouse_chunks);
   RUN_TEST(test_improv_checksum_and_wifi);
+  RUN_TEST(test_button_debounce);
+  RUN_TEST(test_button_begin_held);
+  RUN_TEST(test_round_layout_fits_circle);
+  RUN_TEST(test_default_names);
   return UNITY_END();
 }

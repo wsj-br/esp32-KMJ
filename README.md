@@ -2,13 +2,13 @@
 
 <img src="brand/mark.svg" alt="KMJ" width="152" height="94">
 
-KMJ turns a [LilyGO T-Display-S3 Pro](https://wiki.lilygo.cc/products/t-display-series/t-display-s3-pro/) into a network-controlled USB keyboard and mouse.
+KMJ turns a [LilyGO T-Display-S3 Pro](https://wiki.lilygo.cc/products/t-display-series/t-display-s3-pro/) or a [Waveshare ESP32-S3-Touch-LCD-1.85B](https://www.waveshare.com/esp32-s3-touch-lcd-1.85b.htm) into a network-controlled USB keyboard and mouse.
 
 Run the KMJ desktop app on the **source** computer and plug the board into the **target** computer. The app captures input on the source, sends it over the local network, and the board presents it to the target as a standard USB keyboard and mouse. KMJ carries input only; it does not provide video or remote access over the internet.
 
 ## Requirements
 
-- A LilyGO T-Display-S3 Pro running the KMJ firmware.
+- A supported board running the KMJ firmware: the LilyGO T-Display-S3 Pro or the Waveshare ESP32-S3-Touch-LCD-1.85B.
 - A source computer running the desktop app. Linux capture is complete; see the [platform status](dev/DEVEL.md#capture) for Windows and macOS.
 - A target computer with USB HID support.
 - A local network that lets the source reach the board. The board uses 2.4 GHz Wi-Fi.
@@ -29,7 +29,7 @@ Pairing stores each side's identity key, so it normally needs to be completed on
 - **Mouse Jiggler** generates eased pointer movement, a manual nudge, and an eight-hour unattended limit.
 - **Configuration** manages Wi-Fi, USB output, display settings, and system status.
 
-The red-circle home key wakes the display, returns to the home screen, or turns the backlight off. A long press turns off the backlight without stopping the active function.
+The red-circle home key wakes the display, returns to the home screen, or turns the backlight off. A long press turns off the backlight without stopping the active function. On the Waveshare 1.85B, which has no touch home key, the physical **BOOT** button plays that role.
 
 ## Host permissions
 

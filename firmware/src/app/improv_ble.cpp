@@ -171,7 +171,7 @@ bool advertise() {
   }
   // Build the packet in the advertising object, then let start() hand it to
   // the controller. Pushing the bytes before start() leaves the radio silent.
-  const char* name = settings().device_name[0] != '\0' ? settings().device_name : "KMJ";
+  const char* name = settings().device_name[0] != '\0' ? settings().device_name : kDefaultNamePrefix;
   uint8_t service_data[6] = {g_state_b, kCaps, 0, 0, 0, 0};
   adv->clearData();
   adv->enableScanResponse(true);
@@ -210,7 +210,7 @@ void handle_packet(const ImprovPacket& pkt) {
     return;
   }
   if (pkt.command == 0x03) {
-    const char* info[] = {"KMJ", kFirmwareVersion, "lilygo-t-display-s3-pro", settings().device_name};
+    const char* info[] = {"KMJ", kFirmwareVersion, kBoardName, settings().device_name};
     publish_result(0x03, info, 4);
     return;
   }

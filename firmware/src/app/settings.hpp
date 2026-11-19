@@ -11,8 +11,10 @@ constexpr int kMaxPeers = 4;
 struct Settings {
   char ssid[33] = {};
   char password[65] = {};
-  char hostname[32] = "kmj";
-  char device_name[20] = "KMJ";
+  // Empty until settings_load() fills them with the board default
+  // (kDefaultNamePrefix + last Wi-Fi MAC byte) or a name saved via Improv.
+  char hostname[32] = {};
+  char device_name[20] = {};
   Identity identity{};
   uint8_t peers[kMaxPeers][32]{};
   int peer_count = 0;

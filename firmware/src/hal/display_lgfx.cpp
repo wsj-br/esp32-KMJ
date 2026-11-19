@@ -6,6 +6,8 @@
 
 namespace kmj {
 
+#if defined(KMJ_BOARD_TDISPLAY_S3)
+
 LGFX::LGFX() {
   {
     auto cfg = bus_.config();
@@ -46,16 +48,69 @@ LGFX::LGFX() {
   setPanel(&panel_);
 }
 
+#elif defined(KMJ_BOARD_WS_185B)
+
+// ST77916 over QSPI, 360x360 round. Config follows the working reference in
+// LovyanGFX's lgfx_user/LGFX_JC3636W518.hpp (another 360x360 ST77916 board),
+// with the Waveshare 1.85B pins from its documentation. Colour orientation
+// (invert / rgb_order) still needs confirmation on the panel.
+LGFX::LGFX() {
+  {
+    auto cfg = bus_.config();
+    cfg.spi_host = SPI2_HOST;
+    cfg.spi_mode = 0;
+    cfg.freq_write = 40000000;
+    cfg.freq_read = 16000000;
+    cfg.spi_3wire = true;
+    cfg.use_lock = true;
+    cfg.dma_channel = SPI_DMA_CH_AUTO;
+    cfg.pin_sclk = 40;
+    cfg.pin_io0 = 46;
+    cfg.pin_io1 = 45;
+    cfg.pin_io2 = 42;
+    cfg.pin_io3 = 41;
+    bus_.config(cfg);
+    panel_.setBus(&bus_);
+  }
+  {
+    auto cfg = panel_.config();
+    cfg.pin_cs = 21;
+    cfg.pin_rst = 3;
+    cfg.pin_busy = -1;
+    cfg.memory_width = 360;
+    cfg.memory_height = 360;
+    cfg.panel_width = 360;
+    cfg.panel_height = 360;
+    cfg.offset_x = 0;
+    cfg.offset_y = 0;
+    cfg.offset_rotation = 0;
+    cfg.dummy_read_pixel = 8;
+    cfg.dummy_read_bits = 1;
+    cfg.readable = false;
+    cfg.invert = true;
+    cfg.rgb_order = true;
+    cfg.dlen_16bit = false;
+    cfg.bus_shared = false;
+    panel_.config(cfg);
+  }
+  setPanel(&panel_);
+}
+
+#endif  // board selection
+
 static LGFX g_display;
 static bool g_ready = false;
 
 LGFX& display() { return g_display; }
 
 void display_init() {
-  pinMode(kSdCsPin, OUTPUT);
-  digitalWrite(kSdCsPin, HIGH);
+  if (kSdCsPin >= 0) {
+    // The SD card shares the TFT SPI bus on the LilyGO; keep it idle.
+    pinMode(kSdCsPin, OUTPUT);
+    digitalWrite(kSdCsPin, HIGH);
+  }
   g_display.init();
-  g_display.setRotation(1);
+  g_display.setRotation(kScreenRound ? 0 : 1);
   g_display.fillScreen(TFT_BLACK);
   g_ready = true;
 }

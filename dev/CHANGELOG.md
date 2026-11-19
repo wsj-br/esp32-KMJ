@@ -11,6 +11,8 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 
 ## [Unreleased]
 
+- **Added**: firmware — support for the Waveshare ESP32-S3-Touch-LCD-1.85B as a second board: `kmj-ws185b` and `kmj-ws185b-debug` build environments, a round-native 360x360 UI, the ST77916 QSPI panel, CST816S touch, the BQ27220 battery gauge, and the physical BOOT button as the home/wake key. New per-device scripts `build-tdisplay-s3.sh`, `flash-tdisplay-s3.sh`, `build-ws185b.sh`, `flash-ws185b.sh`, and `build-all-firmware.sh`; releases add `KMJ_<version>_firmware_ws185b.bin`.
+- **Changed**: firmware — the default hostname and device name are per board with a MAC suffix: `KMJ-TD-XX` on the LilyGO, `KMJ-TL-XX` on the Waveshare, where XX is the last byte of the Wi-Fi MAC in uppercase hex. A board that already saved a name through Wi-Fi setup keeps it; a LilyGO that never saved one changes from `kmj` / `KMJ` to `KMJ-TD-XX`.
 - **Fixed**: desktop — the macOS Dock shows the KMJ icon when the app is started with `cargo run`. That build is not a Tauri dev build, so Tauri does not apply `icon.icns` itself.
 - **Fixed**: scripts — dependency upgrade connects over IPv4, so a disabled IPv6 interface cannot stall the registry lookups.
 - **Fixed**: firmware — touch setup passes the reset pin to the CST226 driver, so the controller is hardware-reset before its check code is read. Without that pin the driver issued a software reset and rejected the chip at 0x5A. An idle status byte of 0x00 is acknowledged instead of being discarded, so later taps are reported.

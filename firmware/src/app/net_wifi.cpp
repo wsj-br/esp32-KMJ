@@ -8,6 +8,7 @@
 
 #include "app/debug_log.hpp"
 #include "app/settings.hpp"
+#include "pins.hpp"
 
 namespace kmj {
 namespace {
@@ -161,7 +162,7 @@ void net_advertise(bool on, const char* name, uint16_t port) {
     return;
   }
   if (!g_mdns_up) {
-    if (!MDNS.begin(WiFi.getHostname() != nullptr ? WiFi.getHostname() : "kmj")) {
+    if (!MDNS.begin(WiFi.getHostname() != nullptr ? WiFi.getHostname() : kDefaultNamePrefix)) {
       return;
     }
     g_mdns_up = true;
