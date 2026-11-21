@@ -342,9 +342,10 @@ void ui_tick(uint32_t now_ms) {
     g_screen_on = false;
     g_host->command(Cmd::ScreenOff, 0);
   }
-  if (!model.screen_on) {
-    g_screen_on = false;
-  }
+  // g_screen_on is owned by this task. model.screen_on is the IO task's copy of
+  // the last ScreenOn/ScreenOff, snapshotted before this tick, so it is still
+  // false on the tick that queues ScreenOn. Copying it back cleared the wake
+  // and left touch and the Wi-Fi line dead until the next press.
   paint_status(model);
   paint_screen(model);
   if (g_pair_code != nullptr && model.pair_show) {

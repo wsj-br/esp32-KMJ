@@ -11,6 +11,7 @@ Add new entries at the top of `## [Unreleased]`. When a version is published, mo
 
 ## [Unreleased]
 
+- **Fixed**: firmware — waking a blank display with the home button no longer leaves touch and the Wi-Fi line dead until a second press. The UI was copying the IO task's still-blank screen flag back over the wake in the same tick.
 - **Fixed**: desktop — the macOS event-tap decoder is compiled on macOS and under tests, so Linux and Windows app builds no longer warn that it is unused.
 - **Fixed**: firmware — saved Wi-Fi on the Waveshare survives a reflash. The merged image padded the gap at `0x9000` with `0xFF`, and that gap was the NVS partition, so every upload erased the network. The Waveshare table puts NVS at `0x650000`, past the application. The LilyGO table is unchanged, and the flash script writes the bootloader, partition table, and app as separate regions so it does not erase either board's NVS.
 - **Fixed**: firmware — the round KM Emulator screen stacks link, pairing, and counters in one column. "Waiting to pair" and the paired peer id no longer run off the right edge.
