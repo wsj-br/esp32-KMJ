@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "app/debug_log.hpp"
 #include "logic/names.hpp"
 #include "pins.hpp"
 
@@ -40,9 +41,13 @@ Settings& settings() { return g_settings; }
 
 void settings_load() {
   Preferences prefs;
-  prefs.begin(kNs, false);
+  const bool nvs = prefs.begin(kNs, false);
+  if (!nvs) {
+    KMJ_LOG("settings: nvs open failed");
+  }
   prefs.getString("ssid", g_settings.ssid, sizeof(g_settings.ssid));
   prefs.getString("pass", g_settings.password, sizeof(g_settings.password));
+  KMJ_LOG("settings: wifi %s", g_settings.ssid[0] != '\0' ? "restored" : "empty");
   prefs.getString("host", g_settings.hostname, sizeof(g_settings.hostname));
   prefs.getString("name", g_settings.device_name, sizeof(g_settings.device_name));
   if (g_settings.hostname[0] == '\0') {
@@ -80,10 +85,21 @@ void settings_save_wifi(const char* ssid, const char* password) {
   copy_str(g_settings.ssid, sizeof(g_settings.ssid), ssid);
   copy_str(g_settings.password, sizeof(g_settings.password), password);
   Preferences prefs;
-  prefs.begin(kNs, false);
-  prefs.putString("ssid", g_settings.ssid);
-  prefs.putString("pass", g_settings.password);
+  if (!prefs.begin(kNs, false)) {
+    KMJ_LOG("settings: nvs open failed");
+    return;
+  }
+  // putString returns the stored length, so an empty password reports 0
+  // even when the write landed.
+  const size_t ssid_n = prefs.putString("ssid", g_settings.ssid);
+  const size_t pass_n = prefs.putString("pass", g_settings.password);
   prefs.end();
+  const bool pass_ok = g_settings.password[0] == '\0' || pass_n > 0;
+  if (ssid_n == 0 || !pass_ok) {
+    KMJ_LOG("settings: wifi nvs write failed");
+    return;
+  }
+  KMJ_LOG("settings: wifi saved");
 }
 
 void settings_clear_wifi() {

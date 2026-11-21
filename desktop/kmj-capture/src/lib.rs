@@ -39,6 +39,9 @@ pub fn open() -> io::Result<Box<dyn InputCapture>> {
     ))
 }
 
+// Pure Quartz decoding. macOS uses it; other hosts compile it only under
+// `cargo test`, so the app build does not warn that the mapping is unused.
+#[cfg(any(test, target_os = "macos"))]
 mod mac_events;
 
 #[cfg(target_os = "linux")]

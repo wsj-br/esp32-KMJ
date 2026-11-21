@@ -63,7 +63,12 @@ LGFX::LGFX() {
     cfg.freq_read = 16000000;
     cfg.spi_3wire = true;
     cfg.use_lock = true;
-    cfg.dma_channel = SPI_DMA_CH_AUTO;
+    // LovyanGFX 1.3.0's quad-SPI DMA path spins forever in the OUTFIFO-empty
+    // wait on some clipped writes (fixed upstream after 1.3.0). That wedged
+    // the UI on the Jiggler screen and the bootloader splash, so the 1200 baud
+    // restart never ran and the panel stayed on "Waiting for new firmware".
+    // CPU writes are slower and do not wedge.
+    cfg.dma_channel = 0;
     cfg.pin_sclk = 40;
     cfg.pin_io0 = 46;
     cfg.pin_io1 = 45;

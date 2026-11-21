@@ -21,15 +21,21 @@ void flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
   const uint32_t h = lv_area_get_height(area);
   lv_draw_sw_rgb565_swap(px, w * h);
   LGFX& tft = display();
-  // LovyanGFX 1.3 does not expose a DMA-done interrupt, so the transfer is
-  // finished here before the buffer is released. Two buffers are still allocated
-  // so a later callback can overlap render and SPI without another change.
   const bool started = tft.getStartCount() == 0;
   if (started) {
     tft.startWrite();
   }
+#if defined(KMJ_BOARD_WS_185B)
+  // The QSPI bus is configured with DMA off (see display_lgfx.cpp). pushImageDMA
+  // still calls waitDMA(), which spins forever when no DMA transfer was queued.
+  tft.pushImage(area->x1, area->y1, w, h, reinterpret_cast<uint16_t*>(px));
+#else
+  // LovyanGFX 1.3 does not expose a DMA-done interrupt, so the transfer is
+  // finished here before the buffer is released. Two buffers are still allocated
+  // so a later callback can overlap render and SPI without another change.
   tft.pushImageDMA(area->x1, area->y1, w, h, reinterpret_cast<uint16_t*>(px));
   tft.waitDMA();
+#endif
   if (started) {
     tft.endWrite();
   }

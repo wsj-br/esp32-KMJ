@@ -53,7 +53,7 @@ void pmu_init() {
 
 PowerSample pmu_read() {
   PowerSample sample;
-  i2c_lock();
+  i2c_lock("pmu");
   const int status = read_reg(kReg0B);
   const int bat = read_reg(kReg0E);
   i2c_unlock();

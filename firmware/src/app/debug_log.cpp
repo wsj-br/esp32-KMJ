@@ -16,12 +16,15 @@ extern "C" void kmj_trace(const char* fmt, ...) {
 
 #include <Arduino.h>
 #include <esp_attr.h>
+#include <esp_debug_helpers.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_memory_utils.h>
 #include <esp_system.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "hal/i2c_lock.hpp"
 
 namespace kmj {
 namespace {
@@ -53,6 +56,12 @@ portMUX_TYPE g_lock = portMUX_INITIALIZER_UNLOCKED;
 Watch g_watch[kWatchMax];
 int g_watch_n = 0;
 bool g_started = false;
+
+// Liveness of the UI task, sampled by the heartbeat: when the counter stops
+// moving while the log task still runs, the UI task is wedged and the log
+// task dumps every task's backtrace.
+volatile uint32_t g_ui_last_alive = 0;
+bool g_stall_dumped = false;
 
 void push(const char* data, size_t n) {
   portENTER_CRITICAL(&g_lock);
@@ -188,12 +197,22 @@ void log_task(void*) {
       int len = snprintf(text, sizeof(text), "beat int=%u big=%u psram=%u", static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
                          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)),
                          static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
-      for (int i = 0; i < g_watch_n && len > 0 && len < static_cast<int>(sizeof(text)) - 40; i++) {
+      for (int i = 0; i < g_watch_n && len > 0 && len < static_cast<int>(sizeof(text)) - 60; i++) {
         len += snprintf(text + len, sizeof(text) - len, " %s=%s/%u", g_watch[i].name,
                         state_name(eTaskGetState(g_watch[i].task)),
                         static_cast<unsigned>(uxTaskGetStackHighWaterMark(g_watch[i].task)));
       }
+      const char* holder = i2c_holder();
+      if (len > 0 && len < static_cast<int>(sizeof(text)) - 16) {
+        len += snprintf(text + len, sizeof(text) - len, " i2c=%s", holder != nullptr ? holder : "-");
+      }
       log_printf("%s", text);
+      if (g_ui_last_alive != 0 && now - g_ui_last_alive > 3000 && !g_stall_dumped) {
+        g_stall_dumped = true;
+        log_printf("ui task stalled for %lums; dumping task backtraces",
+                   static_cast<unsigned long>(now - g_ui_last_alive));
+        esp_backtrace_print_all_tasks(16);
+      }
       if (g_dropped > 0) {
         log_printf("dropped %u bytes", static_cast<unsigned>(g_dropped));
         g_dropped = 0;
@@ -233,6 +252,26 @@ void log_heap(const char* where) {
 }
 
 void log_vprintf(const char* fmt, va_list args) { emit(fmt, args); }
+
+void log_ui_alive() {
+  g_ui_last_alive = millis();
+  g_stall_dumped = false;
+}
+
+// Called from the io task (core 0), which can outlive a wedged core 1: when
+// the UI task stops looping, dump every task's backtrace through the log.
+void log_check_ui_stall(uint32_t now_ms) {
+  if (g_ui_last_alive == 0 || g_stall_dumped) {
+    return;
+  }
+  if (now_ms - g_ui_last_alive <= 3000) {
+    return;
+  }
+  g_stall_dumped = true;
+  log_printf("ui task stalled for %lums; dumping task backtraces",
+             static_cast<unsigned long>(now_ms - g_ui_last_alive));
+  esp_backtrace_print_all_tasks(16);
+}
 
 void log_printf(const char* fmt, ...) {
   va_list args;

@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <esp_random.h>
+#include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
@@ -273,11 +274,15 @@ void refresh_live(uint32_t now) {
 
 void io_task(void*) {
   while (true) {
+    esp_task_wdt_reset();
     CmdMsg msg;
     while (xQueueReceive(g_queue, &msg, 0) == pdTRUE) {
       apply(msg);
     }
     const uint32_t now = millis();
+    if (g_ui_started && !g_halting_for_bootloader) {
+      KMJ_CHECK_UI_STALL(now);
+    }
     net_poll();
     if (g_live.mode == Mode::Km || g_live.pair_armed) {
       km_poll(now);
@@ -310,6 +315,8 @@ void ui_task(void*) {
   ui_init(g_host);
   g_ui_started = true;
   while (true) {
+    esp_task_wdt_reset();
+    KMJ_UI_ALIVE();
     if (g_halting_for_bootloader) {
       if (backlight_ready() && backlight_level() == 0) {
         const int level = settings().backlight > 0 ? settings().backlight : kBacklightMax;
@@ -317,6 +324,9 @@ void ui_task(void*) {
       }
       display_show_bootloader();
       g_ui_halted = true;
+      // The bootloader wait suspends this task indefinitely; a watched task
+      // that never feeds the watchdog would panic there.
+      esp_task_wdt_delete(xTaskGetCurrentTaskHandle());
       vTaskSuspend(nullptr);
     }
     if (xSemaphoreTake(g_lock, pdMS_TO_TICKS(5)) == pdTRUE) {
@@ -353,6 +363,20 @@ void runtime_start() {
   TaskHandle_t ui_handle = nullptr;
   xTaskCreatePinnedToCore(io_task, "kmj-io", 8192, nullptr, 4, &io_handle, 0);
   xTaskCreatePinnedToCore(ui_task, "kmj-ui", 12288, nullptr, 3, &ui_handle, 1);
+  // Watch the app tasks with the task watchdog. The prebuilt sdkconfig only
+  // watches core 0's idle task, so a task spinning or blocking forever on
+  // core 1 (the UI task) would otherwise hang the board with no recovery:
+  // silent log, dead touch, and only a PWR press or USB replug brings it
+  // back. The watchdog panic reboots the board, releases HID, and lets the
+  // debug log replay the last lines before the hang.
+  const esp_task_wdt_config_t wdt_cfg = {
+      .timeout_ms = 8000,
+      .idle_core_mask = 1,  // keep the prebuilt core 0 idle watch
+      .trigger_panic = true,
+  };
+  esp_task_wdt_reconfigure(&wdt_cfg);
+  esp_task_wdt_add(io_handle);
+  esp_task_wdt_add(ui_handle);
   KMJ_LOG_WATCH("io", io_handle);
   KMJ_LOG_WATCH("ui", ui_handle);
 }
@@ -360,13 +384,16 @@ void runtime_start() {
 void runtime_show_bootloader_and_halt() {
   if (g_ui_started) {
     g_halting_for_bootloader = true;
-    const uint32_t deadline = millis() + 250;
+    // The UI task paints the splash, then sets g_ui_halted. This caller is the
+    // USB task inside the 1200 baud restart. It must return either way: if the
+    // panel draw wedges, drawing again here blocks on the same bus lock and
+    // the chip never enters the ROM bootloader. The panel then stays on
+    // "Waiting for new firmware" with the application still running.
+    const uint32_t deadline = millis() + 500;
     while (!g_ui_halted && static_cast<int32_t>(millis() - deadline) < 0) {
       vTaskDelay(pdMS_TO_TICKS(5));
     }
-    if (g_ui_halted) {
-      return;
-    }
+    return;
   }
   if (backlight_ready() && backlight_level() == 0) {
     const int level = settings().backlight > 0 ? settings().backlight : kBacklightMax;

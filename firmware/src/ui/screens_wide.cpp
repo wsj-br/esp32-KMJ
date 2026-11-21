@@ -49,7 +49,8 @@ void style_tile(lv_obj_t* obj, uint32_t accent) {
 void clear_screen_ptrs() {
   g_km_state = g_km_meta = g_km_counts = g_km_key = g_km_paired = nullptr;
   g_km_pair_btn = g_km_pair_label = g_line = nullptr;
-  g_jig_state = g_jig_counts = g_run_btn = g_run_label = g_usb_label = g_timeout_label = nullptr;
+  g_jig_state = g_jig_left = g_jig_sent = g_jig_jiggles = nullptr;
+  g_run_btn = g_run_label = g_usb_label = g_timeout_label = nullptr;
   g_home_km = g_home_jig = g_home_cfg = nullptr;
   g_cfg_info = g_cfg_setup = g_cfg_forget = nullptr;
 }
@@ -175,8 +176,12 @@ lv_obj_t* make_jiggler() {
   lv_obj_set_pos(title, 84, kStatusH + 6);
   g_jig_state = label(scr, "", &font_chakra_16, kText);
   lv_obj_set_pos(g_jig_state, 16, kStatusH + 42);
-  g_jig_counts = label(scr, "", &font_plex_14, kDim);
-  lv_obj_set_pos(g_jig_counts, 16, kStatusH + 66);
+  g_jig_left = label(scr, "", &font_plex_14, kDim);
+  lv_obj_set_pos(g_jig_left, 16, kStatusH + 66);
+  g_jig_sent = label(scr, "", &font_plex_14, kDim);
+  lv_obj_set_pos(g_jig_sent, 16, kStatusH + 84);
+  g_jig_jiggles = label(scr, "", &font_plex_14, kDim);
+  lv_obj_set_pos(g_jig_jiggles, 16, kStatusH + 102);
   g_run_btn = lv_button_create(scr);
   lv_obj_set_pos(g_run_btn, 8, 168);
   lv_obj_set_size(g_run_btn, 148, 36);
@@ -259,6 +264,7 @@ void on_cmd_button(lv_event_t* e) {
 
 lv_obj_t* make_config() {
   lv_obj_t* scr = screen_base();
+  lv_obj_add_event_cb(scr, on_gesture, LV_EVENT_GESTURE, nullptr);
   back_button(scr);
   lv_obj_t* title = label(scr, "Configuration", &font_chakra_20, kSlate);
   lv_obj_set_pos(title, 84, kStatusH + 6);

@@ -1,0 +1,15 @@
+# Partition table for the Waveshare envs (kmj-ws185b, kmj-ws185b-debug).
+# The LilyGO envs keep the board default, with NVS at 0x9000.
+#
+# NVS is at 0x650000, immediately after app0, instead of the usual 0x9000 slot
+# between the partition table and otadata. The merged factory image is one
+# contiguous file from 0x0 through the end of the app, and esptool merge-bin
+# fills every gap in that range with 0xFF. A gap at 0x9000 is the whole NVS
+# partition, so flashing that image erased saved Wi-Fi on every upload.
+# 0x650000 is past the largest app that fits in app0, so the merged image
+# never covers it.
+#
+# Name,   Type, SubType, Offset,   Size,    Flags
+otadata,  data, ota,     0xe000,   0x2000,
+app0,     app,  ota_0,   0x10000,  0x640000,
+nvs,      data, nvs,     0x650000, 0x8000,

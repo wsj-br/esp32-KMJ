@@ -463,15 +463,36 @@ void test_round_layout_fits_circle() {
     TEST_ASSERT_TRUE_MESSAGE(w.rect.x >= 0 && w.rect.y >= 0, w.name);
     TEST_ASSERT_TRUE_MESSAGE(w.rect.x + w.rect.w <= kRoundSize && w.rect.y + w.rect.h <= kRoundSize, w.name);
   }
-  // The status strip must stay inside the top/bottom bands where the chord is
-  // wide enough to be readable: the outermost status rows sit no further from
-  // the center than 140 px.
-  TEST_ASSERT_LESS_OR_EQUAL_INT(140, kBat.y + kBat.h - kRoundCenter);
-  TEST_ASSERT_LESS_OR_EQUAL_INT(140, kRoundCenter - kIp.y);
+  // The top and bottom status bands must have room for their labels: the
+  // chord at the outermost row of each status label must cover its width.
+  TEST_ASSERT_GREATER_OR_EQUAL_INT(kWifi.w, chord_half_width(kWifi.y) * 2);
+  TEST_ASSERT_GREATER_OR_EQUAL_INT(kIp.w, chord_half_width(kIp.y + kIp.h) * 2);
   // A sample chord: at the widest row the usable width is the full diameter
   // minus the margin.
   TEST_ASSERT_EQUAL_INT(kRoundUsableRadius, chord_half_width(kRoundCenter));
   TEST_ASSERT_EQUAL_INT(0, chord_half_width(0));
+
+  // Plex Mono 14 advances 134/16 px per glyph. The paired line shows
+  // "Waiting to pair", "Paired  " plus 8 hex digits, or "Paired  4 desktops"
+  // (17 glyphs). The trace is 48 samples at 4 px.
+  TEST_ASSERT_GREATER_OR_EQUAL_INT((17 * 134 + 15) / 16, kKmPaired.w);
+  TEST_ASSERT_GREATER_OR_EQUAL_INT(48 * 4, kKmTrace.w);
+  for (size_t i = 0; i < kRoundWidgetCount; i++) {
+    const char* a = kRoundWidgets[i].name;
+    if (a[0] != 'k' || a[1] != 'm' || a[2] != '.') {
+      continue;
+    }
+    for (size_t j = i + 1; j < kRoundWidgetCount; j++) {
+      const char* b = kRoundWidgets[j].name;
+      if (b[0] != 'k' || b[1] != 'm' || b[2] != '.') {
+        continue;
+      }
+      const RoundRect& ra = kRoundWidgets[i].rect;
+      const RoundRect& rb = kRoundWidgets[j].rect;
+      const bool hit = ra.x < rb.x + rb.w && rb.x < ra.x + ra.w && ra.y < rb.y + rb.h && rb.y < ra.y + ra.h;
+      TEST_ASSERT_FALSE_MESSAGE(hit, a);
+    }
+  }
 }
 
 void test_default_names() {

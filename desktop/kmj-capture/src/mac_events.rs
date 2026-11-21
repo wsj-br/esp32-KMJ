@@ -533,7 +533,11 @@ mod tests {
 
     #[test]
     fn suppressing_tap_covers_pointer_keys_and_scroll() {
+        assert_eq!(TAP_LOCATION_HID, 0);
+        assert_eq!(TAP_HEAD, 0);
         assert_eq!(TAP_OPTIONS_SUPPRESS, 0);
+        assert_eq!(TAP_DISABLED_BY_TIMEOUT, 0xFFFF_FFFE);
+        assert_eq!(TAP_DISABLED_BY_USER, 0xFFFF_FFFF);
         for bit in [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 22, 25, 26, 27] {
             assert_ne!(HID_EVENT_MASK & (1u64 << bit), 0, "missing event {bit}");
         }

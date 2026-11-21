@@ -31,6 +31,13 @@ void on_gesture(lv_event_t* e) {
   (void)e;
 }
 
+void place_centered(lv_obj_t* lab, RoundRect r) {
+  lv_obj_set_pos(lab, r.x, r.y);
+  lv_obj_set_width(lab, r.w);
+  lv_label_set_long_mode(lab, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_align(lab, LV_TEXT_ALIGN_CENTER, 0);
+}
+
 }  // namespace
 
 lv_obj_t* screen_base() {
@@ -54,9 +61,15 @@ void style_tile(lv_obj_t* obj, uint32_t accent) {
   lv_obj_set_style_border_side(obj, LV_BORDER_SIDE_FULL, 0);
   lv_obj_set_style_pad_all(obj, 8, 0);
   lv_obj_set_style_shadow_width(obj, 0, 0);
+#if defined(KMJ_BOARD_WS_185B)
+  // No pressed-state transform here: the transform re-renders the tile with a
+  // different bounding box exactly while it is pressed, and that render path
+  // is implicated in the round-panel freezes.
+#else
   lv_obj_set_style_transform_pivot_x(obj, lv_pct(50), 0);
   lv_obj_set_style_transform_pivot_y(obj, lv_pct(50), 0);
   lv_obj_set_style_transform_scale(obj, 245, LV_STATE_PRESSED);
+#endif
   lv_obj_t* rail = lv_obj_create(obj);
   lv_obj_set_size(rail, 4, lv_pct(70));
   lv_obj_align(rail, LV_ALIGN_LEFT_MID, -2, 0);
@@ -69,7 +82,8 @@ void style_tile(lv_obj_t* obj, uint32_t accent) {
 void clear_screen_ptrs() {
   g_km_state = g_km_meta = g_km_counts = g_km_key = g_km_paired = nullptr;
   g_km_pair_btn = g_km_pair_label = g_line = nullptr;
-  g_jig_state = g_jig_counts = g_run_btn = g_run_label = g_usb_label = g_timeout_label = nullptr;
+  g_jig_state = g_jig_left = g_jig_sent = g_jig_jiggles = nullptr;
+  g_run_btn = g_run_label = g_usb_label = g_timeout_label = nullptr;
   g_home_km = g_home_jig = g_home_cfg = nullptr;
   g_cfg_info = g_cfg_setup = g_cfg_forget = nullptr;
 }
@@ -107,6 +121,8 @@ lv_obj_t* make_home() {
   lv_obj_t* title = label(km, "KM Emulator", &font_chakra_20, kText);
   lv_obj_align(title, LV_ALIGN_TOP_LEFT, 10, 16);
   g_home_km = label(km, "idle", &font_plex_14, kDim);
+  lv_obj_set_width(g_home_km, kHomeKm.w - 20);
+  lv_label_set_long_mode(g_home_km, LV_LABEL_LONG_CLIP);
   lv_obj_align(g_home_km, LV_ALIGN_BOTTOM_LEFT, 10, 0);
   lv_obj_add_event_cb(km, [](lv_event_t*) { go(Mode::Km); }, LV_EVENT_CLICKED, nullptr);
 
@@ -117,6 +133,8 @@ lv_obj_t* make_home() {
   lv_obj_t* jt = label(jig, "Jiggler", &font_chakra_16, kText);
   lv_obj_align(jt, LV_ALIGN_TOP_LEFT, 8, 0);
   g_home_jig = label(jig, "stopped", &font_plex_14, kDim);
+  lv_obj_set_width(g_home_jig, kHomeJig.w - 16);
+  lv_label_set_long_mode(g_home_jig, LV_LABEL_LONG_CLIP);
   lv_obj_align(g_home_jig, LV_ALIGN_BOTTOM_LEFT, 8, 0);
   lv_obj_add_event_cb(jig, [](lv_event_t*) { go(Mode::Jiggler); }, LV_EVENT_CLICKED, nullptr);
 
@@ -127,6 +145,8 @@ lv_obj_t* make_home() {
   lv_obj_t* ct = label(cfg, "Config", &font_chakra_16, kText);
   lv_obj_align(ct, LV_ALIGN_TOP_LEFT, 8, 0);
   g_home_cfg = label(cfg, "", &font_plex_14, kDim);
+  lv_obj_set_width(g_home_cfg, kHomeCfg.w - 16);
+  lv_label_set_long_mode(g_home_cfg, LV_LABEL_LONG_CLIP);
   lv_obj_align(g_home_cfg, LV_ALIGN_BOTTOM_LEFT, 8, 0);
   lv_obj_add_event_cb(cfg, [](lv_event_t*) { go(Mode::Config); }, LV_EVENT_CLICKED, nullptr);
   return scr;
@@ -135,43 +155,33 @@ lv_obj_t* make_home() {
 lv_obj_t* make_km() {
   lv_obj_t* scr = screen_base();
   lv_obj_add_event_cb(scr, on_gesture, LV_EVENT_GESTURE, nullptr);
-  lv_obj_t* title = label(scr, "KM Emulator", &font_chakra_20, kCyan);
-  lv_obj_set_pos(title, kKmTitle.x, kKmTitle.y);
-  lv_obj_set_width(title, kKmTitle.w);
-  lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+  place_centered(label(scr, "KM Emulator", &font_chakra_20, kCyan), kKmTitle);
 
   g_km_state = label(scr, "Listening", &font_chakra_16, kText);
-  lv_obj_set_pos(g_km_state, kKmState.x, kKmState.y);
+  place_centered(g_km_state, kKmState);
+  g_km_paired = label(scr, "Not paired", &font_plex_14, kDim);
+  place_centered(g_km_paired, kKmPaired);
   g_km_meta = label(scr, "", &font_plex_14, kDim);
-  lv_obj_set_pos(g_km_meta, kKmMeta.x, kKmMeta.y);
-  lv_obj_set_width(g_km_meta, kKmMeta.w);
-  lv_label_set_long_mode(g_km_meta, LV_LABEL_LONG_CLIP);
+  place_centered(g_km_meta, kKmMeta);
   g_km_counts = label(scr, "", &font_plex_14, kText);
-  lv_obj_set_pos(g_km_counts, kKmCounts.x, kKmCounts.y);
-  lv_obj_set_width(g_km_counts, kKmCounts.w);
-  lv_label_set_long_mode(g_km_counts, LV_LABEL_LONG_CLIP);
+  place_centered(g_km_counts, kKmCounts);
+  g_km_key = label(scr, "", &font_plex_14, kAmber);
+  place_centered(g_km_key, kKmKey);
   g_line = make_trace(scr);
   lv_obj_set_pos(g_line, kKmTrace.x, kKmTrace.y);
-
-  g_km_paired = label(scr, "Not paired", &font_plex_14, kDim);
-  lv_obj_set_pos(g_km_paired, kKmPaired.x, kKmPaired.y);
-  lv_obj_set_width(g_km_paired, kKmPaired.w);
-  lv_label_set_long_mode(g_km_paired, LV_LABEL_LONG_CLIP);
-  g_km_key = label(scr, "", &font_plex_14, kAmber);
-  lv_obj_set_pos(g_km_key, kKmKey.x, kKmKey.y);
-  lv_obj_set_width(g_km_key, kKmKey.w);
-  lv_label_set_long_mode(g_km_key, LV_LABEL_LONG_CLIP);
 
   g_km_pair_btn = lv_button_create(scr);
   lv_obj_set_pos(g_km_pair_btn, kKmPairBtn.x, kKmPairBtn.y);
   lv_obj_set_size(g_km_pair_btn, kKmPairBtn.w, kKmPairBtn.h);
   lv_obj_set_style_bg_color(g_km_pair_btn, lv_color_hex(kPanel), 0);
+  lv_obj_set_style_pad_hor(g_km_pair_btn, 4, 0);
   g_km_pair_label = label(g_km_pair_btn, "Pair", &font_plex_14, kText);
   lv_obj_add_event_cb(g_km_pair_btn, [](lv_event_t*) { g_host->command(Cmd::ArmPair, 0); }, LV_EVENT_CLICKED, nullptr);
   lv_obj_t* disc = lv_button_create(scr);
   lv_obj_set_pos(disc, kKmDropBtn.x, kKmDropBtn.y);
   lv_obj_set_size(disc, kKmDropBtn.w, kKmDropBtn.h);
   lv_obj_set_style_bg_color(disc, lv_color_hex(0x3A2A2A), 0);
+  lv_obj_set_style_pad_hor(disc, 4, 0);
   label(disc, "Drop", &font_plex_14, kText);
   lv_obj_add_event_cb(disc, [](lv_event_t*) { g_host->command(Cmd::DisconnectClient, 0); }, LV_EVENT_CLICKED, nullptr);
   return scr;
@@ -188,11 +198,23 @@ lv_obj_t* make_jiggler() {
   g_jig_state = label(scr, "", &font_chakra_16, kText);
   lv_obj_set_pos(g_jig_state, kJigState.x, kJigState.y);
   lv_obj_set_width(g_jig_state, kJigState.w);
+  lv_label_set_long_mode(g_jig_state, LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_align(g_jig_state, LV_TEXT_ALIGN_CENTER, 0);
-  g_jig_counts = label(scr, "", &font_plex_14, kDim);
-  lv_obj_set_pos(g_jig_counts, kJigCounts.x, kJigCounts.y);
-  lv_obj_set_width(g_jig_counts, kJigCounts.w);
-  lv_obj_set_style_text_align(g_jig_counts, LV_TEXT_ALIGN_CENTER, 0);
+  g_jig_left = label(scr, "", &font_plex_14, kDim);
+  lv_obj_set_pos(g_jig_left, kJigLeft.x, kJigLeft.y);
+  lv_obj_set_width(g_jig_left, kJigLeft.w);
+  lv_label_set_long_mode(g_jig_left, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_align(g_jig_left, LV_TEXT_ALIGN_CENTER, 0);
+  g_jig_sent = label(scr, "", &font_plex_14, kDim);
+  lv_obj_set_pos(g_jig_sent, kJigSent.x, kJigSent.y);
+  lv_obj_set_width(g_jig_sent, kJigSent.w);
+  lv_label_set_long_mode(g_jig_sent, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_align(g_jig_sent, LV_TEXT_ALIGN_CENTER, 0);
+  g_jig_jiggles = label(scr, "", &font_plex_14, kDim);
+  lv_obj_set_pos(g_jig_jiggles, kJigJiggles.x, kJigJiggles.y);
+  lv_obj_set_width(g_jig_jiggles, kJigJiggles.w);
+  lv_label_set_long_mode(g_jig_jiggles, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_align(g_jig_jiggles, LV_TEXT_ALIGN_CENTER, 0);
 
   g_run_btn = lv_button_create(scr);
   lv_obj_set_pos(g_run_btn, kJigRunBtn.x, kJigRunBtn.y);
@@ -268,6 +290,7 @@ void on_cmd_button(lv_event_t* e) {
 
 lv_obj_t* make_config() {
   lv_obj_t* scr = screen_base();
+  lv_obj_add_event_cb(scr, on_gesture, LV_EVENT_GESTURE, nullptr);
   lv_obj_t* title = label(scr, "Configuration", &font_chakra_20, kSlate);
   lv_obj_set_pos(title, kCfgTitle.x, kCfgTitle.y);
   lv_obj_set_width(title, kCfgTitle.w);
@@ -302,9 +325,12 @@ lv_obj_t* make_config() {
   lv_obj_set_width(g_cfg_info, kCfgInfo.w);
   lv_label_set_long_mode(g_cfg_info, LV_LABEL_LONG_CLIP);
 
-  char stamp[64];
-  snprintf(stamp, sizeof(stamp), "%s  %s", kFirmwareVersion, build_timestamp());
-  lv_obj_t* build = label(scr, stamp, &font_plex_14, kDim);
+  // Version and build timestamp on separate centered rows so neither wraps.
+  lv_obj_t* version = label(scr, kFirmwareVersion, &font_plex_14, kDim);
+  lv_obj_set_pos(version, kCfgVersion.x, kCfgVersion.y);
+  lv_obj_set_width(version, kCfgVersion.w);
+  lv_obj_set_style_text_align(version, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_t* build = label(scr, build_timestamp(), &font_plex_14, kDim);
   lv_obj_set_pos(build, kCfgStamp.x, kCfgStamp.y);
   lv_obj_set_width(build, kCfgStamp.w);
   lv_obj_set_style_text_align(build, LV_TEXT_ALIGN_CENTER, 0);
@@ -347,6 +373,7 @@ void build_status() {
   lv_obj_set_pos(g_bat, kBat.x, kBat.y);
   lv_obj_set_width(g_bat, kBat.w);
   lv_obj_set_style_text_align(g_bat, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_label_set_long_mode(g_bat, LV_LABEL_LONG_CLIP);
   g_ip = label(lv_layer_top(), "", &font_plex_14, kText);
   lv_obj_set_pos(g_ip, kIp.x, kIp.y);
   lv_obj_set_width(g_ip, kIp.w);

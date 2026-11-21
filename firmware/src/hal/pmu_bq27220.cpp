@@ -43,7 +43,7 @@ void pmu_init() {
 
 PowerSample pmu_read() {
   PowerSample sample;
-  i2c_lock();
+  i2c_lock("pmu");
   const bool ok = g_gauge.refresh();
   const int mv = ok ? static_cast<int>(g_gauge.getVoltage()) : 0;
   const int ma = ok ? static_cast<int>(g_gauge.getCurrent()) : 0;

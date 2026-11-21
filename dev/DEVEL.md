@@ -122,7 +122,7 @@ The scripts under `scripts/` are documented below. Run them from any directory; 
 | Script | Purpose and defaults |
 | --- | --- |
 | `build-firmware.sh [env]` | Builds firmware. Envs: `kmj`, `kmj-debug`, `kmj-ws185b`, `kmj-ws185b-debug`. Passes remaining arguments to `pio run`. |
-| `flash-firmware.sh [--first-flash] [env]` | Enters the ROM bootloader, builds, and uploads for any env. Defaults to `kmj-debug`; accepts PlatformIO upload arguments such as `--upload-port`. |
+| `flash-firmware.sh [--first-flash] [env]` | Builds, enters the ROM bootloader, and uploads for any env. Defaults to `kmj-debug`; accepts PlatformIO upload arguments such as `--upload-port`. |
 | `build-tdisplay-s3.sh [kmj\|kmj-debug]` | Builds for the LilyGO T-Display-S3 Pro. Defaults to `kmj`. |
 | `flash-tdisplay-s3.sh [--first-flash] [kmj\|kmj-debug]` | Flashes the LilyGO. Defaults to `kmj-debug`. |
 | `build-ws185b.sh [kmj-ws185b\|kmj-ws185b-debug]` | Builds for the Waveshare 1.85B. Defaults to `kmj-ws185b`. |
@@ -342,3 +342,5 @@ esptool.py --chip esp32s3 write_flash 0x0 KMJ_<version>_firmware.bin
 ./scripts/release.sh --dry-run
 ./scripts/release.sh
 ```
+
+The LilyGO image keeps NVS at `0x9000`. The Waveshare image stores it at `0x650000`, after the application, so flashing `KMJ_<version>_firmware_ws185b.bin` at `0x0` does not erase it. `scripts/flash-firmware.sh` writes the bootloader, partition table, and app separately and leaves both NVS partitions unwritten.

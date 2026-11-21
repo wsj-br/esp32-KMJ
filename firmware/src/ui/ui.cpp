@@ -6,6 +6,7 @@
 #include <lvgl.h>
 
 #include "pins.hpp"
+#include "app/debug_log.hpp"
 #include "ui/ui_internal.hpp"
 
 namespace kmj {
@@ -40,7 +41,9 @@ lv_obj_t* g_km_pair_btn = nullptr;
 lv_obj_t* g_km_pair_label = nullptr;
 lv_obj_t* g_line = nullptr;
 lv_obj_t* g_jig_state = nullptr;
-lv_obj_t* g_jig_counts = nullptr;
+lv_obj_t* g_jig_left = nullptr;
+lv_obj_t* g_jig_sent = nullptr;
+lv_obj_t* g_jig_jiggles = nullptr;
 lv_obj_t* g_run_btn = nullptr;
 lv_obj_t* g_run_label = nullptr;
 lv_obj_t* g_usb_label = nullptr;
@@ -77,6 +80,7 @@ void apply_nav() {
   }
   g_mode = mode;
   lv_obj_t* old = lv_screen_active();
+  KMJ_LOG("nav %d: build", static_cast<int>(mode));
   clear_screen_ptrs();
   lv_obj_t* scr = nullptr;
   Cmd cmd = Cmd::EnterHome;
@@ -94,10 +98,12 @@ void apply_nav() {
     cmd = Cmd::EnterConfig;
   }
   g_host->command(cmd, 0);
+  KMJ_LOG("nav %d: load", static_cast<int>(mode));
   lv_screen_load(scr);
   if (old != nullptr && old != scr) {
     lv_obj_delete(old);
   }
+  KMJ_LOG("nav %d: done", static_cast<int>(mode));
 }
 
 void show(lv_obj_t* obj, bool visible) {
@@ -215,10 +221,13 @@ void paint_screen(const Model& model) {
     }
     lv_label_set_text(g_jig_state, buf);
     const uint32_t left = model.run_left_s;
-    snprintf(buf, sizeof(buf), "left %lu:%02lu   sent %lu  jiggles %lu", static_cast<unsigned long>(left / 60),
-             static_cast<unsigned long>(left % 60), static_cast<unsigned long>(model.hid_tx),
-             static_cast<unsigned long>(model.jiggle_count));
-    lv_label_set_text(g_jig_counts, buf);
+    snprintf(buf, sizeof(buf), "left %lu:%02lu", static_cast<unsigned long>(left / 60),
+             static_cast<unsigned long>(left % 60));
+    lv_label_set_text(g_jig_left, buf);
+    snprintf(buf, sizeof(buf), "sent %lu", static_cast<unsigned long>(model.hid_tx));
+    lv_label_set_text(g_jig_sent, buf);
+    snprintf(buf, sizeof(buf), "jiggles %lu", static_cast<unsigned long>(model.jiggle_count));
+    lv_label_set_text(g_jig_jiggles, buf);
   }
   if (g_run_btn != nullptr && g_run_label != nullptr) {
     const bool running = model.jiggler_run;

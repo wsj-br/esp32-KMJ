@@ -78,44 +78,53 @@ struct RoundWidget {
   bool interactive;  // takes touches: enforced minimum size
 };
 
-// Status (built once on the top layer; visible on every screen).
+// Status (built once on the top layer; visible on every screen). Sub-screen
+// titles start below this band, at y=66.
 constexpr RoundRect kWifi{77, 40, 144, 20};
 constexpr RoundRect kBat{225, 40, 58, 20};
-constexpr RoundRect kIp{77, 300, 206, 20};
+// The IP sits below the home tiles so the top layer never covers them.
+constexpr RoundRect kIp{105, 316, 150, 20};
 
-// Home: big KM tile in the middle, Jiggler and Config side by side below.
-constexpr RoundRect kHomeKm{60, 76, 240, 164};
-constexpr RoundRect kHomeJig{72, 250, 104, 62};
-constexpr RoundRect kHomeCfg{184, 250, 104, 62};
+// Home: the three function tiles stacked vertically with equal heights.
+constexpr RoundRect kHomeKm{68, 66, 224, 76};
+constexpr RoundRect kHomeJig{68, 150, 224, 76};
+constexpr RoundRect kHomeCfg{68, 234, 224, 76};
 
 // KM Emulator screen. No back button: the BOOT button and the swipe-right
-// gesture both go home.
-constexpr RoundRect kKmTitle{80, 44, 200, 22};
-constexpr RoundRect kKmState{50, 96, 160, 24};
-constexpr RoundRect kKmMeta{50, 124, 160, 20};
-constexpr RoundRect kKmCounts{50, 148, 160, 20};
-constexpr RoundRect kKmTrace{50, 176, 192, 20};  // line origin
-constexpr RoundRect kKmPaired{220, 88, 110, 22};
-constexpr RoundRect kKmKey{220, 116, 100, 20};
-constexpr RoundRect kKmPairBtn{86, 252, 100, 36};
-constexpr RoundRect kKmDropBtn{194, 252, 100, 36};
+// gesture both go home. The title band starts below the status labels.
+// Status is one centered column. A side-by-side row is narrower than
+// "Waiting to pair" and "Paired" plus the 8-digit peer id in Plex Mono 14.
+constexpr RoundRect kKmTitle{80, 66, 200, 26};
+constexpr RoundRect kKmState{40, 98, 280, 20};
+constexpr RoundRect kKmPaired{40, 122, 280, 20};
+constexpr RoundRect kKmMeta{40, 146, 280, 20};
+constexpr RoundRect kKmCounts{40, 170, 280, 20};
+constexpr RoundRect kKmKey{40, 194, 280, 20};
+constexpr RoundRect kKmTrace{84, 218, 192, 22};  // 48 samples, 4 px apart
+constexpr RoundRect kKmPairBtn{66, 254, 110, 40};
+constexpr RoundRect kKmDropBtn{184, 254, 110, 40};
 
-// Mouse Jiggler screen.
-constexpr RoundRect kJigTitle{80, 44, 200, 22};
+// Mouse Jiggler screen. The counters get one centered line each; the run
+// button has its own row, with Jiggle and Nudge side by side below it.
+constexpr RoundRect kJigTitle{80, 66, 200, 26};
 constexpr RoundRect kJigState{60, 100, 180, 28};
-constexpr RoundRect kJigCounts{60, 136, 240, 20};
-constexpr RoundRect kJigRunBtn{56, 240, 108, 40};
-constexpr RoundRect kJigNowBtn{172, 240, 84, 40};
-constexpr RoundRect kJigNudgeBtn{264, 240, 48, 40};
+constexpr RoundRect kJigLeft{60, 136, 240, 18};
+constexpr RoundRect kJigSent{60, 156, 240, 18};
+constexpr RoundRect kJigJiggles{60, 176, 240, 18};
+constexpr RoundRect kJigRunBtn{120, 206, 120, 40};
+constexpr RoundRect kJigNowBtn{66, 254, 110, 40};
+constexpr RoundRect kJigNudgeBtn{184, 254, 110, 40};
 
 // Configuration screen.
-constexpr RoundRect kCfgTitle{70, 44, 220, 22};
-constexpr RoundRect kCfgSetup{56, 96, 140, 34};
-constexpr RoundRect kCfgTimeout{204, 96, 100, 34};
-constexpr RoundRect kCfgReboot{56, 138, 112, 34};
-constexpr RoundRect kCfgSlider{176, 142, 124, 24};  // drag control, not a tap target
+constexpr RoundRect kCfgTitle{80, 66, 200, 26};
+constexpr RoundRect kCfgSetup{56, 100, 140, 34};
+constexpr RoundRect kCfgTimeout{204, 100, 100, 34};
+constexpr RoundRect kCfgReboot{56, 142, 112, 34};
+constexpr RoundRect kCfgSlider{176, 146, 124, 24};  // drag control, not a tap target
 constexpr RoundRect kCfgInfo{56, 180, 248, 88};
-constexpr RoundRect kCfgStamp{80, 276, 200, 18};
+// Version and build timestamp get one centered row each, above the IP band.
+constexpr RoundRect kCfgVersion{80, 276, 200, 18};
+constexpr RoundRect kCfgStamp{80, 296, 200, 18};
 
 constexpr RoundWidget kRoundWidgets[] = {
     {"status.wifi", kWifi, false},
@@ -135,7 +144,9 @@ constexpr RoundWidget kRoundWidgets[] = {
     {"km.drop_btn", kKmDropBtn, true},
     {"jiggler.title", kJigTitle, false},
     {"jiggler.state", kJigState, false},
-    {"jiggler.counts", kJigCounts, false},
+    {"jiggler.left", kJigLeft, false},
+    {"jiggler.sent", kJigSent, false},
+    {"jiggler.jiggles", kJigJiggles, false},
     {"jiggler.run_btn", kJigRunBtn, true},
     {"jiggler.jiggle_btn", kJigNowBtn, true},
     {"jiggler.nudge_btn", kJigNudgeBtn, true},
@@ -145,6 +156,7 @@ constexpr RoundWidget kRoundWidgets[] = {
     {"config.reboot_btn", kCfgReboot, true},
     {"config.backlight_slider", kCfgSlider, false},
     {"config.info", kCfgInfo, false},
+    {"config.version", kCfgVersion, false},
     {"config.stamp", kCfgStamp, false},
 };
 

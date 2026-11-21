@@ -76,7 +76,7 @@ TouchSample touch_read() {
   g_home = false;
   int16_t x = -1;
   int16_t y = -1;
-  i2c_lock();
+  i2c_lock("touch");
   const TouchPoints& points = g_touch.getTouchPoints();
   sample.down = points.hasPoints();
   if (sample.down) {
